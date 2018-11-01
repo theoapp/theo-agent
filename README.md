@@ -2,6 +2,9 @@
 Theo agent
 
 ## Install
+- [Linux install](#linux-install)
+
+### Linux Install
 
 1. Simply download one of the binaries for your system:
 
@@ -18,47 +21,57 @@ sudo wget -O /usr/local/bin/theo-agent TBD/latest/binaries/theo-agent-linux-arm
 
 2. Give it permissions to execute:
 
-`sudo chmod +x /usr/local/bin/theo-agent`
+```
+sudo chmod +x /usr/local/bin/theo-agent
+```
 
 3. Create a Theo Agent user:
 
-`sudo useradd --comment 'Theo Agent' --create-home theo-agent --shell /bin/false`
+```
+sudo useradd --comment 'Theo Agent' --create-home theo-agent --shell /bin/false
+```
 
 4. Install 
 
-    1 Full Automatic install
+    1. Full Automatic install
 
-    `sudo theo-agent -install -no-interactive -sshd-config -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN} `
+    ```
+    sudo theo-agent -install -no-interactive -sshd-config -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
+    ```
 
-    2 Semi-Automatic install
+    2. Semi-Automatic install
 
-    `sudo theo-agent -install -no-interactive -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN} `
+    ```
+    sudo theo-agent -install -no-interactive -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
+    ```
 
     Edit `/etc/ssh/sshd_config` as suggested
 
-    3 Semi-manual install
+    3. Semi-manual install
 
-    `sudo theo-agent -install`
+    ```
+    sudo theo-agent -install
+    ```
 
     Answer to the questions and edit `/etc/ssh/sshd_config` as suggested
 
-    4 Manual install
+    4. Manual install
 
-    Create a _config.yml_ file (default is /etc/theo-agent/config.yml):
+    Create a `config.yml` file (default is */etc/theo-agent/config.yml*):
 
     ```
     url: THEO_URL
     token: THEO_CLIENT_TOKEN
     ```
 
-    Create a cache directory (default is /var/cache/theo-agent):
+    Create a cache directory (default is */var/cache/theo-agent*):
 
     ```
     mkdir /var/cache/theo-agent
     chmod 755 /var/cache/theo-agent
     ```
 
-    Modify _/etc/ssh/sshd_config_ (if you changed the default path, add the options to the command)
+    Modify `/etc/ssh/sshd_config` (if you changed the default path, add the options to the command)
 
     ```
     PasswordAuthentication no
