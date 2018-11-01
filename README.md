@@ -35,47 +35,47 @@ sudo useradd --comment 'Theo Agent' --create-home theo-agent --shell /bin/false
 
     1. Full Automatic install
 
-    ```
-    sudo theo-agent -install -no-interactive -sshd-config -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
-    ```
+        ```
+        sudo theo-agent -install -no-interactive -sshd-config -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
+        ```
 
     2. Semi-Automatic install
 
-    ```
-    sudo theo-agent -install -no-interactive -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
-    ```
+        ```
+        sudo theo-agent -install -no-interactive -url ${THEO_URL} -token ${THEO_CLIENT_TOKEN}
+        ```
 
-    Edit `/etc/ssh/sshd_config` as suggested
+        Edit `/etc/ssh/sshd_config` as suggested
 
     3. Semi-manual install
 
-    ```
-    sudo theo-agent -install
-    ```
+        ```
+        sudo theo-agent -install
+        ```
 
-    Answer to the questions and edit `/etc/ssh/sshd_config` as suggested
+        Answer to the questions and edit `/etc/ssh/sshd_config` as suggested
 
     4. Manual install
 
-    Create a `config.yml` file (default is */etc/theo-agent/config.yml*):
+        Create a `config.yml` file (default is */etc/theo-agent/config.yml*):
 
-    ```
-    url: THEO_URL
-    token: THEO_CLIENT_TOKEN
-    ```
+        ```
+        url: THEO_URL
+        token: THEO_CLIENT_TOKEN
+        ```
 
-    Create a cache directory (default is */var/cache/theo-agent*):
+        Create a cache directory (default is */var/cache/theo-agent*):
 
-    ```
-    mkdir /var/cache/theo-agent
-    chmod 755 /var/cache/theo-agent
-    ```
+        ```
+        mkdir /var/cache/theo-agent
+        chmod 755 /var/cache/theo-agent
+        ```
 
-    Modify `/etc/ssh/sshd_config` (if you changed the default path, add the options to the command)
+        Modify `/etc/ssh/sshd_config` (if you changed the default path, add the options to the command)
 
-    ```
-    PasswordAuthentication no
-    AuthorizedKeysFile /var/cache/theo-agent/%u
-    AuthorizedKeysCommand /usr/local/bin/theo-agent [-config-file /path/to/config.yml] [-cache-path /path/to/cache/dir]
-    AuthorizedKeysCommandUser theo-agent
-    ```
+        ```
+        PasswordAuthentication no
+        AuthorizedKeysFile /var/cache/theo-agent/%u
+        AuthorizedKeysCommand /usr/local/bin/theo-agent [-config-file /path/to/config.yml] [-cache-path /path/to/cache/dir]
+        AuthorizedKeysCommandUser theo-agent
+        ```
