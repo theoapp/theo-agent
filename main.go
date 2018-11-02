@@ -5,13 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/theoapp/theo-agent/common"
 )
 
-const K_CONFIG_FILE = "/etc/theo-agent/config.yml";
-const K_CACHE_PATH = "/var/cache/theo-agent";
+const K_CONFIG_FILE = "/etc/theo-agent/config.yml"
+const K_CACHE_PATH = "/var/cache/theo-agent"
 
 var reader *bufio.Reader
 
+var version = flag.Bool("version", false, "Print theo-agent version")
 var install = flag.Bool("install", false, "Install theo-agent")
 var noInteractive = flag.Bool("no-interactive", false, "Don't ask, just try to work!")
 var debug = flag.Bool("debug", false, "Print debug messages")
@@ -29,11 +32,15 @@ func main() {
 	}
 	flag.Parse()
 
+	if *version {
+		common.AppVersion.Printer()
+		os.Exit(0)
+	}
 	if *install {
 		Install()
 		os.Exit(0)
 	}
-	
+
 	if len(flag.Args()) < 1 {
 		flag.Usage()
 		os.Exit(1)

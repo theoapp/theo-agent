@@ -1,6 +1,10 @@
 NAME ?= theo-agent
 PACKAGE_NAME ?= $(NAME)
 
+export VERSION := $(shell ./ci/version)
+REVISION := $(shell git rev-parse --short=8 HEAD || echo unknown)
+BRANCH := $(shell git show-ref | grep "$(REVISION)" | grep -v HEAD | awk '{print $$2}' | sed 's|refs/remotes/origin/||' | sed 's|refs/heads/||' | sort | head -n 1)
+BUILT := $(shell date -u +%Y-%m-%dT%H:%M:%S%z)
 
 LATEST_STABLE_TAG := $(shell git -c versionsort.prereleaseSuffix="-rc" -c versionsort.prereleaseSuffix="-RC" tag -l "v*.*.*" --sort=-v:refname | awk '!/rc/' | head -n 1)
 export IS_LATEST :=
@@ -8,7 +12,8 @@ ifeq ($(shell git describe --exact-match --match $(LATEST_STABLE_TAG) >/dev/null
 export IS_LATEST := true
 endif
 
-PKG = theoapp.com/$(PACKAGE_NAME)
+PKG = github.com/theoapp/$(PACKAGE_NAME)
+COMMON_PACKAGE_NAMESPACE=$(PKG)/common
 
 BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
 
@@ -24,6 +29,10 @@ PKG_BUILD_DIR := $(LOCAL_GOPATH)/src/$(PKG)
 export GOPATH = $(LOCAL_GOPATH)
 export PATH := $(GOPATH_BIN):$(PATH)
 
+GO_LDFLAGS ?= -X $(COMMON_PACKAGE_NAMESPACE).NAME=$(PACKAGE_NAME) -X $(COMMON_PACKAGE_NAMESPACE).VERSION=$(VERSION) \
+              -X $(COMMON_PACKAGE_NAMESPACE).REVISION=$(REVISION) -X $(COMMON_PACKAGE_NAMESPACE).BUILT=$(BUILT) \
+              -X $(COMMON_PACKAGE_NAMESPACE).BRANCH=$(BRANCH) \
+              -s -w
 
 # Development Tools
 DEP = $(GOPATH_BIN)/dep
@@ -56,6 +65,7 @@ deps: $(DEVELOPMENT_TOOLS)
 build: $(GOX)
 	# Building $(NAME) in version $(VERSION) for $(BUILD_PLATFORMS)
 	gox $(BUILD_PLATFORMS) \
+	    -ldflags "$(GO_LDFLAGS)" \
 		-output="out/binaries/$(NAME)-{{.OS}}-{{.Arch}}" \
 		$(PKG)
 
@@ -77,7 +87,7 @@ $(GOPATH_SETUP): $(PKG_BUILD_DIR)
 
 $(PKG_BUILD_DIR):
 	mkdir -p $(@D)
-	ln -s ../../.. $@
+	ln -s ../../../.. $@
 
 # development tools
 $(DEP): $(GOPATH_SETUP)

@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"os"
 	"net/http"
+	"os"
+
+	"github.com/theoapp/theo-agent/common"
+	"gopkg.in/yaml.v2"
 )
 
 func Query(user string, url *string, token *string) int {
@@ -21,19 +23,19 @@ func Query(user string, url *string, token *string) int {
 		} else if ret == 20 {
 			ret = retFromFile(user)
 		}
-		
+
 		os.Exit(ret)
 	} else {
 		_, ret := performQuery(user, *url, *token)
-		return ret;
+		return ret
 	}
 	return 0
 }
 
 func performQuery(user string, url string, token string) ([]byte, int) {
-	
+
 	remoteUrl := fmt.Sprintf("%s/authorized_keys/%s/%s", url, loadHostname(), user)
-	
+
 	req, err := http.NewRequest(http.MethodGet, remoteUrl, nil)
 	if err != nil {
 		if *debug {
@@ -42,6 +44,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		return nil, 8
 	}
 
+	req.Header.Set("User-Agent", common.AppVersion.UserAgent())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := http.DefaultClient.Do(req)
@@ -80,13 +83,13 @@ func writeCacheFile(user string, body []byte) int {
 	return 0
 }
 
-func getUserFilename(user string ) string {
+func getUserFilename(user string) string {
 	return fmt.Sprintf("%s/%s", *cacheDirPath, user)
 }
 
 func retFromFile(user string) int {
 	dat, err := ioutil.ReadFile(getUserFilename(user))
-    if err != nil {
+	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read cache file (%s): %s\n", getUserFilename(user), err)
 		}
