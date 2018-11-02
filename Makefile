@@ -10,6 +10,7 @@ endif
 
 PKG = theoapp.com/$(PACKAGE_NAME)
 
+BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
 
 BUILD_DIR := $(CURDIR)
 TARGET_DIR := $(BUILD_DIR)/out
@@ -31,10 +32,13 @@ DEVELOPMENT_TOOLS = $(DEP) $(GOX)
 
 OSARCH := "linux/amd64 linux/386 darwin/amd64"
 
-.PHONY: all # All targets are accessible for user
+.PHONY: clean version
 .DEFAULT: help # Running Make will run the help target
 
+all: deps build
+
 help: 
+	@echo Help
 	# Commands:
 	# make all => deps build
 	# make version - show information about current version
@@ -48,6 +52,12 @@ version:
 
 
 deps: $(DEVELOPMENT_TOOLS)
+
+build: $(GOX)
+	# Building $(NAME) in version $(VERSION) for $(BUILD_PLATFORMS)
+	gox $(BUILD_PLATFORMS) \
+		-output="out/binaries/$(NAME)-{{.OS}}-{{.Arch}}" \
+		$(PKG)
 
 build_simple: dep_check
 	# Building $(NAME) in version $(VERSION) for current platform
