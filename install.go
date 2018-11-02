@@ -17,7 +17,7 @@ type SshConfig struct {
 var sshconfigs = []SshConfig{
 	SshConfig{"PasswordAuthentication", "no"},
 	SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%%u"},
-	SshConfig{"AuthorizedKeysCommand", "/usr/local/bin/theo-agent"},
+	SshConfig{"AuthorizedKeysCommand", "/usr/sbin/theo-agent"},
 	SshConfig{"AuthorizedKeysCommandUser", "theo-agent"},
 }
 

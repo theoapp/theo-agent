@@ -10,19 +10,19 @@ Theo agent
 
 ```
 # Linux x86-64
-sudo wget -O /usr/local/bin/theo-agent TBD/latest/binaries/theo-agent-linux-amd64
+sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-amd64
 
 # Linux x86
-sudo wget -O /usr/local/bin/theo-agent TBD/latest/binaries/theo-agent-linux-386
+sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-386
 
 # Linux arm
-sudo wget -O /usr/local/bin/theo-agent TBD/latest/binaries/theo-agent-linux-arm
+sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-arm
 ```
 
 2. Give it permissions to execute:
 
 ```
-sudo chmod +x /usr/local/bin/theo-agent
+sudo chmod 755 /usr/sbin/theo-agent
 ```
 
 3. Create a Theo Agent user:
@@ -76,6 +76,6 @@ sudo useradd --comment 'Theo Agent' --create-home theo-agent --shell /bin/false
         ```
         PasswordAuthentication no
         AuthorizedKeysFile /var/cache/theo-agent/%u
-        AuthorizedKeysCommand /usr/local/bin/theo-agent [-config-file /path/to/config.yml] [-cache-path /path/to/cache/dir]
+        AuthorizedKeysCommand /usr/sbin/theo-agent [-config-file /path/to/config.yml] [-cache-path /path/to/cache/dir]
         AuthorizedKeysCommandUser theo-agent
         ```
