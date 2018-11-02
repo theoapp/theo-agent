@@ -100,7 +100,7 @@ func loadConfig() ([]byte, int) {
 	data, err := ioutil.ReadFile(*configFilePath)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to read configFile (%s): %s", *configFilePath, err)
+			fmt.Fprintf(os.Stderr, "Unable to read configFile (%s): %s\n", *configFilePath, err)
 		}
 		return nil, 5
 	}
@@ -111,9 +111,9 @@ func loadHostname() (hostname string) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to obtain hostname: %s", err)
+			fmt.Fprintf(os.Stderr, "Unable to obtain hostname: %s\n", err)
 		}
-		os.Exit(6)	
+		os.Exit(6)
 	}
 	return
 }
