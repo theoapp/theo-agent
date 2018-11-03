@@ -1,4 +1,5 @@
 NAME ?= theo-agent
+GITHUB_NAMESPACE ?= theoapp
 PACKAGE_NAME ?= $(NAME)
 
 export VERSION := $(shell ./ci/version)
@@ -12,11 +13,15 @@ ifeq ($(shell git describe --exact-match --match $(LATEST_STABLE_TAG) >/dev/null
 export IS_LATEST := true
 endif
 
+SEMVERTAG := $(shell cat ./VERSION)
+TAG := v$(SEMVERTAG)
+
 PKG = github.com/theoapp/$(PACKAGE_NAME)
 COMMON_PACKAGE_NAMESPACE=$(PKG)/common
 
-BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
-
+#BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
+BUILD_PLATFORMS ?= -os 'linux'
+BUILD_ARCHS ?= -arch 'amd64' -arch 'arm' 
 BUILD_DIR := $(CURDIR)
 TARGET_DIR := $(BUILD_DIR)/out
 
@@ -37,12 +42,11 @@ GO_LDFLAGS ?= -X $(COMMON_PACKAGE_NAMESPACE).NAME=$(PACKAGE_NAME) -X $(COMMON_PA
 # Development Tools
 DEP = $(GOPATH_BIN)/dep
 GOX = $(GOPATH_BIN)/gox
-DEVELOPMENT_TOOLS = $(DEP) $(GOX)
+GHR = $(GOPATH_BIN)/github-release
 
-OSARCH := "linux/amd64 linux/386 darwin/amd64"
+UPLOAD_CMD = $(GHR) upload --user $(GITHUB_NAMESPACE) --repo $(NAME) --tag v$(VERSION) -n $(FILE) -f out/binaries/$(FILE)
 
-.PHONY: clean version
-.DEFAULT: help # Running Make will run the help target
+DEVELOPMENT_TOOLS = $(DEP) $(GOX) $(GHR)
 
 all: deps build
 
@@ -62,12 +66,14 @@ version:
 
 deps: $(DEVELOPMENT_TOOLS)
 
-build: $(GOX)
+build: deps
 	# Building $(NAME) in version $(VERSION) for $(BUILD_PLATFORMS)
 	gox $(BUILD_PLATFORMS) \
+		$(BUILD_ARCHS) \
 	    -ldflags "$(GO_LDFLAGS)" \
 		-output="out/binaries/$(NAME)-{{.OS}}-{{.Arch}}" \
 		$(PKG)
+
 
 build_simple: dep_check
 	# Building $(NAME) in version $(VERSION) for current platform
@@ -75,7 +81,6 @@ build_simple: dep_check
 		-ldflags "$(GO_LDFLAGS)" \
 		-o "out/binaries/$(NAME)" \
 		$(PKG)
-
 
 dep_check: $(DEP)
 	@cd $(PKG_BUILD_DIR) && $(DEP) check
@@ -96,6 +101,23 @@ $(DEP): $(GOPATH_SETUP)
 $(GOX): $(GOPATH_SETUP)
 	go get github.com/mitchellh/gox
 
+$(GHR): $(GOPATH_SETUP)
+	go get github.com/aktau/github-release
+
+tag: $(GHR)	
+	git tag $(TAG) -m "Release $(SEMVERTAG)"
+	github-release release \
+		--user $(GITHUB_NAMESPACE) \
+		--repo $(NAME) \
+		--tag $(TAG) \
+		--name "Release $(SEMVERTAG)"
+
+release: build
+	$(foreach FILE,$(shell cd out/binaries; ls -1 $(NAME)-*),$(UPLOAD_CMD);)
+	
 clean:
 	-$(RM) -rf $(LOCAL_GOPATH)
+	-$(RM) -rf $(TARGET_DIR)
+
+clean_target:
 	-$(RM) -rf $(TARGET_DIR)
