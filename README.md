@@ -10,13 +10,10 @@ Theo agent
 
 ```
 # Linux x86-64
-sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-amd64
-
-# Linux x86
-sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-386
+sudo curl -L -o /usr/sbin/theo-agent https://github.com/theoapp/theo-agent/releases/download/$(curl -L -s -H 'Accept: application/json' https://github.com/theoapp/theo-agent/releases/latest |sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')/theo-agent-linux-amd64
 
 # Linux arm
-sudo wget -O /usr/sbin/theo-agent TBD/latest/binaries/theo-agent-linux-arm
+sudo curl -L -o /usr/sbin/theo-agent https://github.com/theoapp/theo-agent/releases/download/$(curl -L -s -H 'Accept: application/json' https://github.com/theoapp/theo-agent/releases/latest |sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')/theo-agent-linux-arm
 ```
 
 2. Give it permissions to execute:
