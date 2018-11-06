@@ -3,22 +3,24 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
-	"path"
-	"strings"
 	"io/ioutil"
+	"os"
+	"os/user"
+	"path"
+	"strconv"
+	"strings"
 )
 
 type SshConfig struct {
-	key string
+	key   string
 	value string
 }
 
 var sshconfigs = []SshConfig{
 	SshConfig{"PasswordAuthentication", "no"},
-	SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%%u"},
+	SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%u"},
 	SshConfig{"AuthorizedKeysCommand", "/usr/sbin/theo-agent"},
-	SshConfig{"AuthorizedKeysCommandUser", "theo-agent"},
+	SshConfig{"AuthorizedKeysCommandUser", *theoUser},
 }
 
 func Install() {
@@ -41,8 +43,8 @@ func Install() {
 
 func prepareInstall() {
 
-	askOnce("Theo server URL", theoUrl)
-	if *theoUrl == "" {
+	askOnce("Theo server URL", theoURL)
+	if *theoURL == "" {
 		fmt.Fprintf(os.Stderr, "Missing required Theo URL\n")
 		os.Exit(2)
 	}
@@ -83,10 +85,23 @@ func askOnce(prompt string, result *string) {
 }
 
 func mkdirs() {
-	dirs := [2]string{ path.Dir(*configFilePath), *cacheDirPath}
+	dirs := [2]string{path.Dir(*configFilePath), *cacheDirPath}
 	for i := 0; i < len(dirs); i++ {
 		ensureDir(dirs[i])
-    }
+	}
+	user := lookupUser()
+	uid, err := strconv.Atoi(user.Uid)
+	if err == nil {
+		os.Chown(*cacheDirPath, uid, -1)
+	}
+}
+
+func lookupUser() *user.User {
+	user, err := user.Lookup(*theoUser)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to find user (%s): %s", *theoUser, err))
+	}
+	return user
 }
 
 func ensureDir(path string) {
@@ -95,18 +110,19 @@ func ensureDir(path string) {
 		if err != nil {
 			panic(fmt.Sprintf("Unable to create dir (%s): %s", path, err))
 		}
+
 	}
 }
 
 func checkConfig() {
-	ret := Query("test", theoUrl, theoAccessToken)
+	ret := Query("test", theoURL, theoAccessToken)
 	if ret > 0 {
-		panic(fmt.Sprintf("Check failed, unable to retrieve keys from %s", *theoUrl))
+		panic(fmt.Sprintf("Check failed, unable to retrieve keys from %s", *theoURL))
 	}
 }
 
 func writeConfigYaml() {
-	config := fmt.Sprintf("url: %s\ntoken: %s\n", *theoUrl, *theoAccessToken)
+	config := fmt.Sprintf("url: %s\ntoken: %s\n", *theoURL, *theoAccessToken)
 	f, err := os.Create(*configFilePath)
 	if err != nil {
 		if *debug {
@@ -115,7 +131,7 @@ func writeConfigYaml() {
 		os.Exit(21)
 	}
 	defer f.Close()
-    
+
 	_, err = f.WriteString(config)
 	if err != nil {
 		if *debug {
@@ -164,7 +180,7 @@ func doEditSshdConfig() bool {
 		os.Exit(21)
 	}
 	defer f.Close()
-    
+
 	_, err = f.WriteString(strings.Join(lines, "\n"))
 	if err != nil {
 		if *debug {
@@ -177,6 +193,6 @@ func doEditSshdConfig() bool {
 }
 
 func remove(s []SshConfig, i int) []SshConfig {
-    s[len(s)-1], s[i] = s[i], s[len(s)-1]
-    return s[:len(s)-1]
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
 }

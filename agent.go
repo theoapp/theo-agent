@@ -23,7 +23,6 @@ func Query(user string, url *string, token *string) int {
 		} else if ret == 20 {
 			ret = retFromFile(user)
 		}
-
 		os.Exit(ret)
 	} else {
 		_, ret := performQuery(user, *url, *token)
@@ -34,12 +33,12 @@ func Query(user string, url *string, token *string) int {
 
 func performQuery(user string, url string, token string) ([]byte, int) {
 
-	remoteUrl := fmt.Sprintf("%s/authorized_keys/%s/%s", url, loadHostname(), user)
+	remoteURL := fmt.Sprintf("%s/authorized_keys/%s/%s", url, loadHostname(), user)
 
-	req, err := http.NewRequest(http.MethodGet, remoteUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, remoteURL, nil)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to get remote URL (%s): %s\n", remoteUrl, err)
+			fmt.Fprintf(os.Stderr, "Unable to get remote URL (%s): %s\n", remoteURL, err)
 		}
 		return nil, 8
 	}
@@ -50,7 +49,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to fetch authorized_keys (%s): %s\n", remoteUrl, err)
+			fmt.Fprintf(os.Stderr, "Unable to fetch authorized_keys (%s): %s\n", remoteURL, err)
 		}
 		return nil, 9
 	}
@@ -58,14 +57,14 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 	defer resp.Body.Close()
 	if resp.StatusCode > 399 {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "HTTP response error from %s: %d\n", remoteUrl, resp.StatusCode)
+			fmt.Fprintf(os.Stderr, "HTTP response error from %s: %d\n", remoteURL, resp.StatusCode)
 		}
 		return nil, 20
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to parse HTTP response from %s: %s\n", remoteUrl, err)
+			fmt.Fprintf(os.Stderr, "Unable to parse HTTP response from %s: %s\n", remoteURL, err)
 		}
 		return nil, 20
 	}
@@ -84,7 +83,7 @@ func writeCacheFile(user string, body []byte) int {
 }
 
 func getUserFilename(user string) string {
-	return fmt.Sprintf("%s/%s", *cacheDirPath, user)
+	return fmt.Sprintf("%s/.%s", *cacheDirPath, user)
 }
 
 func retFromFile(user string) int {
