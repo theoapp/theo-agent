@@ -1,6 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +26,25 @@ func Query(user string, url *string, token *string) int {
 			os.Exit(ret)
 		}
 		body, ret := performQuery(user, config["url"], config["token"])
+		if ret == 0 {
+			if *verify {
+				var _publicKeyPath string
+				if *publicKeyPath != "" {
+					_publicKeyPath = *publicKeyPath
+				} else {
+					_publicKeyPath = config["public_key"]
+				}
+				if _publicKeyPath == "" {
+					fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
+					os.Exit(10)
+				}
+				b, err := verifyKeys(_publicKeyPath, body)
+				if err != nil {
+					os.Exit(9)
+				}
+				body = b
+			}
+		}
 		fmt.Println(string(body))
 		if ret == 0 {
 			ret = writeCacheFile(user, body)
@@ -45,6 +73,9 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 
 	req.Header.Set("User-Agent", common.AppVersion.UserAgent())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if *verify {
+		req.Header.Set("Accept", "application/json")
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -134,4 +165,102 @@ func parseConfig() (map[string]string, int) {
 		return nil, 7
 	}
 	return config, 0
+}
+
+func verifyKeys(publicKeyPath string, body []byte) ([]byte, error) {
+
+	type Key struct {
+		Public_key     string
+		Public_key_sig string
+	}
+
+	// keys := make([]Key, 0)
+	var keys []Key
+	if err := json.Unmarshal(body, &keys); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to parse json response : %s\n", err)
+		return nil, err
+	}
+	var b bytes.Buffer
+	parser, perr := loadPublicKey(publicKeyPath)
+	if perr != nil {
+		fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
+		return nil, perr
+	}
+	for i := 0; i < len(keys); i++ {
+		key := keys[i]
+		signature, _ := hex.DecodeString(key.Public_key_sig)
+		err := parser.Verify([]byte(key.Public_key), signature)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+			continue
+		}
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString(key.Public_key)
+	}
+	return b.Bytes(), nil
+}
+
+func loadPublicKey(path string) (Verifier, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		if *debug {
+			fmt.Fprintf(os.Stderr, "Unable to read public.pem (%s): %s\n", path, err)
+		}
+		return nil, err
+	}
+	return parsePublicKey(data)
+}
+
+func parsePublicKey(pemBytes []byte) (Verifier, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, errors.New("public key file does not contains any key")
+	}
+
+	var rawkey interface{}
+	switch block.Type {
+	case "PUBLIC KEY":
+		rsa, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+
+		rawkey = rsa
+	default:
+		return nil, fmt.Errorf("rsa: unsupported key type %q", block.Type)
+	}
+
+	return newVerifierFromKey(rawkey)
+}
+
+func newVerifierFromKey(k interface{}) (Verifier, error) {
+	var sshKey Verifier
+	switch t := k.(type) {
+	case *rsa.PublicKey:
+		sshKey = &rsaPublicKey{t}
+	default:
+		return nil, fmt.Errorf("rsa: unsupported key type %T", k)
+	}
+	return sshKey, nil
+}
+
+type rsaPublicKey struct {
+	*rsa.PublicKey
+}
+
+// A Signer is can create signatures that verify against a public key.
+type Verifier interface {
+	// Sign returns raw signature for the given data. This method
+	// will apply the hash specified for the keytype to the data.
+	Verify(data []byte, sig []byte) error
+}
+
+// Unsign verifies the message using a rsa-sha256 signature
+func (r *rsaPublicKey) Verify(message []byte, signature []byte) error {
+	h := sha256.New()
+	h.Write(message)
+	d := h.Sum(nil)
+	return rsa.VerifyPKCS1v15(r.PublicKey, crypto.SHA256, d, signature)
 }

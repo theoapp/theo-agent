@@ -16,11 +16,18 @@ type SshConfig struct {
 	value string
 }
 
-var sshconfigs = []SshConfig{
-	SshConfig{"PasswordAuthentication", "no"},
-	SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%u"},
-	SshConfig{"AuthorizedKeysCommand", "/usr/sbin/theo-agent"},
-	SshConfig{"AuthorizedKeysCommandUser", *theoUser},
+func getSshConfigs(user string, verify bool) []SshConfig {
+	var commandOpts = ""
+	if verify {
+		commandOpts = " -verify"
+	}
+	var sshconfigs = []SshConfig{
+		SshConfig{"PasswordAuthentication", "no"},
+		SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%u"},
+		SshConfig{"AuthorizedKeysCommand", fmt.Sprintf("/usr/sbin/theo-agent%s", commandOpts)},
+		SshConfig{"AuthorizedKeysCommandUser", user},
+	}
+	return sshconfigs
 }
 
 func Install() {
@@ -33,6 +40,7 @@ func Install() {
 	} else {
 		fmt.Fprintf(os.Stderr, "You didn't specify -sshd-config so you have to edit manually /etc/ssh/sshd_config:\n\n")
 		i := 0
+		sshconfigs := getSshConfigs(*theoUser, *verify)
 		for i < len(sshconfigs) {
 			line := fmt.Sprintf("%s %s\n", sshconfigs[i].key, sshconfigs[i].value) // I have to go through fmt.Sprintf because of %%u in sshconfigs[i].value
 			fmt.Fprintf(os.Stderr, line)
@@ -53,6 +61,14 @@ func prepareInstall() {
 	if *theoAccessToken == "" {
 		fmt.Fprintf(os.Stderr, "Missing required Theo access token\n")
 		os.Exit(2)
+	}
+
+	if *verify {
+		askOnce("Public key path", publicKeyPath)
+		if *publicKeyPath == "" {
+			fmt.Fprintf(os.Stderr, "If -verify flag is true, Public Key path is required\n")
+			os.Exit(2)
+		}
 	}
 }
 
@@ -122,7 +138,11 @@ func checkConfig() {
 }
 
 func writeConfigYaml() {
-	config := fmt.Sprintf("url: %s\ntoken: %s\n", *theoURL, *theoAccessToken)
+	_publicKeyPath := ""
+	if *verify {
+		_publicKeyPath = fmt.Sprintf("public_key: %s\n", *publicKeyPath)
+	}
+	config := fmt.Sprintf("url: %s\ntoken: %s\n%s", *theoURL, *theoAccessToken, _publicKeyPath)
 	f, err := os.Create(*configFilePath)
 	if err != nil {
 		if *debug {
@@ -152,9 +172,11 @@ func doEditSshdConfig() bool {
 	}
 	lines := strings.Split(string(data), "\n")
 	i := 0
+	sshconfigs := getSshConfigs(*theoUser, *verify)
 	for i < len(lines) {
 		line := lines[i]
 		ii := 0
+
 		for ii < len(sshconfigs) {
 			p := strings.Index(line, sshconfigs[ii].key)
 			if p >= 0 {
