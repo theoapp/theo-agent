@@ -1,0 +1,11 @@
+---
+# This playbook deploys theo-agent.
+
+- hosts: all
+  remote_user: root
+  #remote_user: user
+  #become: yes
+  #become_method: sudo
+
+  roles:
+    - theo-agent
