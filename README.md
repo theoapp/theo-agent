@@ -25,7 +25,7 @@ sudo chmod 755 /usr/sbin/theo-agent
 3. Create a Theo Agent user:
 
 ```
-sudo useradd -r --comment 'Theo Agent' --no-create-home --shell /bin/false
+sudo useradd -r --comment 'Theo Agent' --no-create-home --shell /bin/false theo-agent
 ```
 
 4. Install 
