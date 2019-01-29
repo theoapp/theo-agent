@@ -45,10 +45,10 @@ func Query(user string, url *string, token *string) int {
 				body = b
 			}
 		}
-		fmt.Println(string(body))
 		if ret == 0 {
+			fmt.Println(string(body))
 			ret = writeCacheFile(user, body)
-		} else if ret == 20 {
+		} else {
 			ret = retFromFile(user)
 		}
 		os.Exit(ret)
