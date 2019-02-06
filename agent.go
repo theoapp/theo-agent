@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	urlu "net/url"
 	"os"
 
 	"github.com/theoapp/theo-agent/common"
@@ -61,8 +62,11 @@ func Query(user string, url *string, token *string) int {
 
 func performQuery(user string, url string, token string) ([]byte, int) {
 
-	remoteURL := fmt.Sprintf("%s/authorized_keys/%s/%s", url, loadHostname(), user)
-
+	remotePath := fmt.Sprintf("authorized_keys/%s/%s", urlu.PathEscape(loadHostname()), urlu.PathEscape(user))
+	remoteURL := fmt.Sprintf("%s/%s", url, remotePath)
+	if *sshFingerprint != "" {
+		remoteURL = fmt.Sprintf("%s?f=%s", remoteURL, urlu.QueryEscape(*sshFingerprint))
+	}
 	req, err := http.NewRequest(http.MethodGet, remoteURL, nil)
 	if err != nil {
 		if *debug {

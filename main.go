@@ -27,6 +27,7 @@ var publicKeyPath = flag.String("public-key", "", "Public key path - Used to ver
 var configFilePath = flag.String("config-file", K_CONFIG_FILE, "Path to theo agent config file")
 var cacheDirPath = flag.String("cache-path", K_CACHE_PATH, "Path to store cached authorized_keys file")
 var editSshdConfig = flag.Bool("sshd-config", false, "Edit sshd_config")
+var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the	key or certificate. (Token %f)")
 
 func main() {
 	flag.Usage = func() {
