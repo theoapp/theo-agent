@@ -30,6 +30,7 @@ func getSshConfigs(user string, verify bool) []SshConfig {
 	return sshconfigs
 }
 
+// Install will update sshd_condif if requested, create cache directory
 func Install() {
 	prepareInstall()
 	checkConfig()

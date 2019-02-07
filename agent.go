@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string, url *string, token *string) int {
 	if url == nil || token == nil {
 		config, ret := parseConfig()
@@ -254,7 +255,7 @@ type rsaPublicKey struct {
 	*rsa.PublicKey
 }
 
-// A Signer is can create signatures that verify against a public key.
+// Verifier verifies signature against a public key.
 type Verifier interface {
 	// Sign returns raw signature for the given data. This method
 	// will apply the hash specified for the keytype to the data.
