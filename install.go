@@ -164,10 +164,10 @@ func writeConfigYaml() {
 
 func doEditSshdConfig() bool {
 
-	data, err := ioutil.ReadFile("/etc/ssh/sshd_config")
+	data, err := ioutil.ReadFile(*pathSshdConfig)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to read %s, %s", "/etc/ssh/sshd_config", err)
+			fmt.Fprintf(os.Stderr, "Unable to read %s, %s", pathSshdConfig, err)
 		}
 		return false
 	}
@@ -195,10 +195,10 @@ func doEditSshdConfig() bool {
 		ii++
 	}
 
-	f, err := os.Create("/etc/ssh/sshd_config")
+	f, err := os.Create(*pathSshdConfig)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", "/etc/ssh/sshd_config", err)
+			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
 		}
 		os.Exit(21)
 	}
@@ -207,7 +207,7 @@ func doEditSshdConfig() bool {
 	_, err = f.WriteString(strings.Join(lines, "\n"))
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", "/etc/ssh/sshd_config", err)
+			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
 		}
 		os.Exit(21)
 	}
