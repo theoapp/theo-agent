@@ -19,7 +19,7 @@ type SshConfig struct {
 func getSshConfigs(user string, verify bool) []SshConfig {
 	var commandOpts = ""
 	if verify {
-		commandOpts = " -verify"
+		commandOpts = " -verify %u"
 	}
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
