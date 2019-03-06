@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"strconv"
@@ -16,15 +17,25 @@ type SshConfig struct {
 	value string
 }
 
-func getSshConfigs(user string, verify bool) []SshConfig {
+func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
-	if verify {
-		commandOpts = " -verify %u"
+	if version[0] > 7 || (version[0] == 7 && version[1] > 4) {
+		if verify {
+			commandOpts = "-fingerprint %f -verify %u"
+		} else {
+			commandOpts = "-fingerprint %f %u"
+		}
+	} else {
+		if verify {
+			commandOpts = "-verify %u"
+		} else {
+			commandOpts = "%u"
+		}
 	}
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
-		SshConfig{"AuthorizedKeysFile", "/var/cache/theo-agent/%u"},
-		SshConfig{"AuthorizedKeysCommand", fmt.Sprintf("/usr/sbin/theo-agent%s", commandOpts)},
+		SshConfig{"AuthorizedKeysFile", `/var/cache/theo-agent/%u`},
+		SshConfig{"AuthorizedKeysCommand", fmt.Sprintf("/usr/sbin/theo-agent %s", commandOpts)},
 		SshConfig{"AuthorizedKeysCommandUser", user},
 	}
 	return sshconfigs
@@ -32,19 +43,24 @@ func getSshConfigs(user string, verify bool) []SshConfig {
 
 // Install will update sshd_condif if requested, create cache directory
 func Install() {
+	major, minor := checkSSHDVersion()
+	if major < 6 || (major == 6 && minor < 2) {
+		fmt.Fprintf(os.Stderr, "Current OpenSSH version (%d.%d) does not support AuthorizedKeysCommand which is available since 6.2\n", major, minor)
+		os.Exit(1)
+	}
 	prepareInstall()
 	checkConfig()
+	version := [2]int64{major, minor}
 	mkdirs()
 	writeConfigYaml()
 	if *editSshdConfig {
-		doEditSshdConfig()
+		doEditSshdConfig(version)
 	} else {
 		fmt.Fprintf(os.Stderr, "You didn't specify -sshd-config so you have to edit manually /etc/ssh/sshd_config:\n\n")
 		i := 0
-		sshconfigs := getSshConfigs(*theoUser, *verify)
+		sshconfigs := getSshConfigs(*theoUser, *verify, version)
 		for i < len(sshconfigs) {
-			line := fmt.Sprintf("%s %s\n", sshconfigs[i].key, sshconfigs[i].value) // I have to go through fmt.Sprintf because of %%u in sshconfigs[i].value
-			fmt.Fprintf(os.Stderr, line)
+			fmt.Fprintf(os.Stderr, "%s %s\n", sshconfigs[i].key, sshconfigs[i].value)
 			i++
 		}
 	}
@@ -162,7 +178,7 @@ func writeConfigYaml() {
 	}
 }
 
-func doEditSshdConfig() bool {
+func doEditSshdConfig(version [2]int64) bool {
 
 	data, err := ioutil.ReadFile(*pathSshdConfig)
 	if err != nil {
@@ -173,7 +189,7 @@ func doEditSshdConfig() bool {
 	}
 	lines := strings.Split(string(data), "\n")
 	i := 0
-	sshconfigs := getSshConfigs(*theoUser, *verify)
+	sshconfigs := getSshConfigs(*theoUser, *verify, version)
 	for i < len(lines) {
 		line := lines[i]
 		ii := 0
@@ -197,18 +213,16 @@ func doEditSshdConfig() bool {
 
 	f, err := os.Create(*pathSshdConfig)
 	if err != nil {
-		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
-		}
+
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
+
 		os.Exit(21)
 	}
 	defer f.Close()
 
 	_, err = f.WriteString(strings.Join(lines, "\n"))
 	if err != nil {
-		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
-		}
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
 		os.Exit(21)
 	}
 
@@ -218,4 +232,56 @@ func doEditSshdConfig() bool {
 func remove(s []SshConfig, i int) []SshConfig {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+func getSSHDVersion() (int64, int64) {
+	cmd := exec.Command("sshd", "-v")
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to get sshd version: %s", err)
+		os.Exit(21)
+	}
+
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to get sshd version: %s", err)
+		os.Exit(20)
+	}
+
+	slurp, _ := ioutil.ReadAll(stderr)
+
+	lines := strings.Split(string(slurp[:]), "\n")
+
+	openssh := strings.Split(lines[1], " ")
+	return parseSSHDVersion(openssh)
+}
+
+func parseSSHDVersion(openssh []string) (int64, int64) {
+	var version = "0.0"
+	i := 0
+	for i < len(openssh) {
+		if strings.HasPrefix(openssh[i], "OpenSSH") {
+			version = openssh[i]
+			break
+		}
+		i++
+	}
+	if version != "0.0" {
+		version = version[8:]
+		if version[len(version)-1:] == "," {
+			version = version[:len(version)-1]
+		}
+		ppos := strings.Index(version, "p")
+		if ppos > 0 {
+			version = version[:ppos]
+		}
+	}
+	majorMinor := strings.Split(version, ".")
+	major, err := strconv.ParseInt(majorMinor[0], 10, 64)
+	if err == nil {
+		minor, err := strconv.ParseInt(majorMinor[1], 10, 64)
+		if err == nil {
+			return major, minor
+		}
+	}
+	return 0, 0
 }
