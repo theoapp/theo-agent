@@ -43,7 +43,7 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 
 // Install will update sshd_condif if requested, create cache directory
 func Install() {
-	major, minor := checkSSHDVersion()
+	major, minor := getSSHDVersion()
 	if major < 6 || (major == 6 && minor < 2) {
 		fmt.Fprintf(os.Stderr, "Current OpenSSH version (%d.%d) does not support AuthorizedKeysCommand which is available since 6.2\n", major, minor)
 		os.Exit(1)
