@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:0a48cb9c2757781932550a45ad11dd497722d4018a28077de65674aec7eee90e"
+  name = "github.com/hashicorp/go-syslog"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8d1874e3e8d1862b74e0536851e218c4571066a5"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   digest = "1:b5a6fb71fcb583bf7a77f4fef4fcd613c7882bb63d69286ff0b85efda830f493"
   name = "golang.org/x/crypto"
@@ -37,6 +45,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/hashicorp/go-syslog",
     "golang.org/x/crypto/ssh",
     "gopkg.in/yaml.v2",
   ]
