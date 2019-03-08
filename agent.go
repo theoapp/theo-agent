@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -16,9 +15,19 @@ import (
 	urlu "net/url"
 	"os"
 
+	gsyslog "github.com/hashicorp/go-syslog"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/theoapp/theo-agent/common"
 	"gopkg.in/yaml.v2"
 )
+
+// Key is the object returned by theo-node
+type Key struct {
+	PublicKey    string `json:"public_key"`
+	PublicKeySig string `json:"public_key_sig"`
+	Account      string `json:"email"`
+}
 
 // Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string, url *string, token *string) int {
@@ -27,10 +36,11 @@ func Query(user string, url *string, token *string) int {
 		if ret > 0 {
 			os.Exit(ret)
 		}
+		var keys []Key
 		body, ret := performQuery(user, config["url"], config["token"])
 		if ret == 0 {
+			var _publicKeyPath string
 			if *verify {
-				var _publicKeyPath string
 				if *publicKeyPath != "" {
 					_publicKeyPath = *publicKeyPath
 				} else {
@@ -40,18 +50,36 @@ func Query(user string, url *string, token *string) int {
 					fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
 					os.Exit(10)
 				}
-				b, err := verifyKeys(_publicKeyPath, body)
-				if err != nil {
-					os.Exit(9)
-				}
-				body = b
+			}
+			var err error
+			keys, err = verifyKeys(_publicKeyPath, body)
+			if err != nil {
+				os.Exit(9)
+			}
+			ret = writeCacheFile(user, keys)
+		}
+		if ret != 0 {
+			ret, keys = retFromFile(user)
+			if ret > 0 {
+				os.Exit(9)
 			}
 		}
-		if ret == 0 {
-			fmt.Println(string(body))
-			ret = writeCacheFile(user, body)
-		} else {
-			ret = retFromFile(user)
+		for i := 0; i < len(keys); i++ {
+			fmt.Printf("%s\n", keys[i].PublicKey)
+			if keys[i].Account != "" {
+				if *sshFingerprint != "" {
+					sshpk := parseSSHPublicKey(keys[i].PublicKey)
+					f := ssh.FingerprintSHA256(sshpk)
+					if f == *sshFingerprint {
+						a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
+						if b == nil {
+							a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
+						} else {
+
+						}
+					}
+				}
+			}
 		}
 		os.Exit(ret)
 	} else {
@@ -78,9 +106,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 
 	req.Header.Set("User-Agent", common.AppVersion.UserAgent())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	if *verify {
-		req.Header.Set("Accept", "application/json")
-	}
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -107,7 +133,8 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 	return body, 0
 }
 
-func writeCacheFile(user string, body []byte) int {
+func writeCacheFile(user string, keys []Key) int {
+	body, _ := json.Marshal(keys)
 	err := ioutil.WriteFile(getUserFilename(user), body, 0644)
 	if err != nil {
 		if *debug {
@@ -119,19 +146,23 @@ func writeCacheFile(user string, body []byte) int {
 }
 
 func getUserFilename(user string) string {
-	return fmt.Sprintf("%s/.%s", *cacheDirPath, user)
+	return fmt.Sprintf("%s/.%s.json", *cacheDirPath, user)
 }
 
-func retFromFile(user string) int {
+func retFromFile(user string) (int, []Key) {
 	dat, err := ioutil.ReadFile(getUserFilename(user))
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read cache file (%s): %s\n", getUserFilename(user), err)
 		}
-		return 2
+		return 0, nil
 	}
-	fmt.Print(string(dat))
-	return 0
+	var keys []Key
+	if err := json.Unmarshal(dat, &keys); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to parse json file : %s\n", err)
+		return 0, nil
+	}
+	return 0, keys
 }
 
 func loadConfig() ([]byte, int) {
@@ -172,39 +203,38 @@ func parseConfig() (map[string]string, int) {
 	return config, 0
 }
 
-func verifyKeys(publicKeyPath string, body []byte) ([]byte, error) {
-
-	type Key struct {
-		Public_key     string
-		Public_key_sig string
-	}
+func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 
 	// keys := make([]Key, 0)
 	var keys []Key
+	var retKeys []Key
 	if err := json.Unmarshal(body, &keys); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to parse json response : %s\n", err)
 		return nil, err
 	}
-	var b bytes.Buffer
-	parser, perr := loadPublicKey(publicKeyPath)
-	if perr != nil {
-		fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
-		return nil, perr
+	var parser Verifier
+	var perr error
+	if publicKeyPath != "" {
+		parser, perr = loadPublicKey(publicKeyPath)
+		if perr != nil {
+			fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
+			return nil, perr
+		}
 	}
+
 	for i := 0; i < len(keys); i++ {
 		key := keys[i]
-		signature, _ := hex.DecodeString(key.Public_key_sig)
-		err := parser.Verify([]byte(key.Public_key), signature)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
-			continue
+		if parser != nil {
+			signature, _ := hex.DecodeString(key.PublicKeySig)
+			err := parser.Verify([]byte(key.PublicKey), signature)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+				continue
+			}
 		}
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString(key.Public_key)
+		retKeys = append(retKeys, key)
 	}
-	return b.Bytes(), nil
+	return retKeys, nil
 }
 
 func loadPublicKey(path string) (Verifier, error) {
@@ -268,4 +298,15 @@ func (r *rsaPublicKey) Verify(message []byte, signature []byte) error {
 	h.Write(message)
 	d := h.Sum(nil)
 	return rsa.VerifyPKCS1v15(r.PublicKey, crypto.SHA256, d, signature)
+}
+
+func parseSSHPublicKey(publicKey string) ssh.PublicKey {
+	pubKeyBytes := []byte(publicKey)
+
+	// Parse the key, other info ignored
+	pk, _, _, _, err := ssh.ParseAuthorizedKey(pubKeyBytes)
+	if err != nil {
+		panic(err)
+	}
+	return pk
 }
