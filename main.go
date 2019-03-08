@@ -33,7 +33,7 @@ var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the	key 
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\n  %s [OPTIONS]\n\nOptions:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\n  %s [OPTIONS] LOGIN\n\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
