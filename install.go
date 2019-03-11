@@ -183,7 +183,7 @@ func doEditSshdConfig(version [2]int64) bool {
 	data, err := ioutil.ReadFile(*pathSshdConfig)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to read %s, %s", pathSshdConfig, err)
+			fmt.Fprintf(os.Stderr, "Unable to read %s, %s", *pathSshdConfig, err)
 		}
 		return false
 	}
@@ -214,7 +214,7 @@ func doEditSshdConfig(version [2]int64) bool {
 	f, err := os.Create(*pathSshdConfig)
 	if err != nil {
 
-		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *pathSshdConfig, err)
 
 		os.Exit(21)
 	}
@@ -222,7 +222,7 @@ func doEditSshdConfig(version [2]int64) bool {
 
 	_, err = f.WriteString(strings.Join(lines, "\n"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", pathSshdConfig, err)
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *pathSshdConfig, err)
 		os.Exit(21)
 	}
 

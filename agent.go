@@ -203,6 +203,8 @@ func parseConfig() (map[string]string, int) {
 	return config, 0
 }
 
+var parser Verifier
+
 func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 
 	// keys := make([]Key, 0)
@@ -212,10 +214,10 @@ func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 		fmt.Fprintf(os.Stderr, "Unable to parse json response : %s\n", err)
 		return nil, err
 	}
-	var parser Verifier
+
 	var perr error
 	if publicKeyPath != "" {
-		parser, perr = loadPublicKey(publicKeyPath)
+		perr = loadPublicKey(publicKeyPath)
 		if perr != nil {
 			fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
 			return nil, perr
@@ -228,7 +230,9 @@ func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 			signature, _ := hex.DecodeString(key.PublicKeySig)
 			err := parser.Verify([]byte(key.PublicKey), signature)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+				if *debug {
+					fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+				}
 				continue
 			}
 		}
@@ -237,21 +241,22 @@ func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 	return retKeys, nil
 }
 
-func loadPublicKey(path string) (Verifier, error) {
+func loadPublicKey(path string) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read public.pem (%s): %s\n", path, err)
 		}
-		return nil, err
+		return err
 	}
-	return parsePublicKey(data)
+	parsePublicKey(data)
+	return nil
 }
 
-func parsePublicKey(pemBytes []byte) (Verifier, error) {
+func parsePublicKey(pemBytes []byte) error {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, errors.New("public key file does not contains any key")
+		return errors.New("public key file does not contains any key")
 	}
 
 	var rawkey interface{}
@@ -259,15 +264,17 @@ func parsePublicKey(pemBytes []byte) (Verifier, error) {
 	case "PUBLIC KEY":
 		rsa, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		rawkey = rsa
 	default:
-		return nil, fmt.Errorf("rsa: unsupported key type %q", block.Type)
+		return fmt.Errorf("rsa: unsupported key type %q", block.Type)
 	}
+	var err error
+	parser, err = newVerifierFromKey(rawkey)
 
-	return newVerifierFromKey(rawkey)
+	return err
 }
 
 func newVerifierFromKey(k interface{}) (Verifier, error) {
