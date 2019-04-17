@@ -20,10 +20,11 @@ PKG = github.com/theoapp/$(PACKAGE_NAME)
 COMMON_PACKAGE_NAMESPACE=$(PKG)/common
 
 #BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
-BUILD_PLATFORMS ?= -os 'linux'
+BUILD_PLATFORMS ?= -os 'linux' -os 'netbsd' -os 'openbsd'
 BUILD_ARCHS ?= -arch 'amd64' -arch 'arm' 
 BUILD_DIR := $(CURDIR)
 TARGET_DIR := $(BUILD_DIR)/out
+VENDOR_DIR := $(BUILD_DIR)/vendor
 
 ORIGINAL_GOPATH = $(shell echo $$GOPATH)
 LOCAL_GOPATH := $(CURDIR)/.gopath
@@ -53,20 +54,25 @@ all: deps build
 help: 
 	@echo Help
 	# Commands:
-	# make all => deps build
+	# make build - builds ${NAME} for ${BUILD_PLATFORMS} platforms
+	# make build_current => builds ${NAME} for current platform
 	# make version - show information about current version
 	#
 	#
 	# Deployment commands:
 	# make deps - install all dependencies
+	# make clean - clean up
 
 version:
 	@echo Current version: $(VERSION)
 
+deps: $(DEP)
+	@cd $(PKG_BUILD_DIR) && $(DEP) ensure -v
 
-deps: $(DEVELOPMENT_TOOLS)
+release_deps: $(DEVELOPMENT_TOOLS)
+	@cd $(PKG_BUILD_DIR) && $(DEP) ensure -v
 
-build: deps
+build: release_deps
 	# Building $(NAME) in version $(VERSION) for $(BUILD_PLATFORMS)
 	gox $(BUILD_PLATFORMS) \
 		$(BUILD_ARCHS) \
@@ -75,7 +81,7 @@ build: deps
 		$(PKG)
 
 
-build_simple: dep_check
+build_current: deps
 	# Building $(NAME) in version $(VERSION) for current platform
 	go build \
 		-ldflags "$(GO_LDFLAGS)" \
@@ -118,6 +124,10 @@ release: build
 clean:
 	-$(RM) -rf $(LOCAL_GOPATH)
 	-$(RM) -rf $(TARGET_DIR)
+	-$(RM) -rf $(VENDOR_DIR)
 
 clean_target:
 	-$(RM) -rf $(TARGET_DIR)
+
+clean_vendor:
+	-$(RM) -rf $(VENDOR_DIR)
