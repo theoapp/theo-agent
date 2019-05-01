@@ -14,6 +14,7 @@ import (
 	"net/http"
 	urlu "net/url"
 	"os"
+	"strconv"
 
 	gsyslog "github.com/hashicorp/go-syslog"
 	"golang.org/x/crypto/ssh"
@@ -29,6 +30,8 @@ type Key struct {
 	Account      string `json:"email"`
 }
 
+var parser Verifier
+
 // Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string, url *string, token *string) int {
 	if url == nil || token == nil {
@@ -40,7 +43,17 @@ func Query(user string, url *string, token *string) int {
 		body, ret := performQuery(user, config["url"], config["token"])
 		if ret == 0 {
 			var _publicKeyPath string
+			_verify := false
 			if *verify {
+				_verify = true
+			} else {
+				if val, ok := config["verify"]; ok {
+					if s, err := strconv.ParseBool(val); err == nil {
+						_verify = s
+					}
+				}
+			}
+			if _verify {
 				if *publicKeyPath != "" {
 					_publicKeyPath = *publicKeyPath
 				} else {
@@ -202,8 +215,6 @@ func parseConfig() (map[string]string, int) {
 	}
 	return config, 0
 }
-
-var parser Verifier
 
 func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 
