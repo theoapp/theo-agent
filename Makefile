@@ -20,8 +20,9 @@ PKG = github.com/theoapp/$(PACKAGE_NAME)
 COMMON_PACKAGE_NAMESPACE=$(PKG)/common
 
 #BUILD_PLATFORMS ?= -os '!netbsd' -os '!openbsd' -os '!windows'
-BUILD_PLATFORMS ?= -os 'linux' -os 'netbsd' -os 'openbsd'
-BUILD_ARCHS ?= -arch 'amd64' -arch 'arm' 
+BUILD_PLATFORMS ?= -os 'linux'
+BUILD_ARCHS ?= -arch '386' -arch 'amd64' -arch 'arm64'
+BUILD_OSARCHS ?= -osarch 'darwin/amd64' -osarch 'freebsd/amd64'
 BUILD_DIR := $(CURDIR)
 TARGET_DIR := $(BUILD_DIR)/out
 VENDOR_DIR := $(BUILD_DIR)/vendor
@@ -66,6 +67,9 @@ help:
 version:
 	@echo Current version: $(VERSION)
 
+test: deps
+	go test
+
 deps: $(DEP)
 	@cd $(PKG_BUILD_DIR) && $(DEP) ensure -v
 
@@ -76,10 +80,23 @@ build: release_deps
 	# Building $(NAME) in version $(VERSION) for $(BUILD_PLATFORMS)
 	gox $(BUILD_PLATFORMS) \
 		$(BUILD_ARCHS) \
+		$(BUILD_OSARCHS) \
 	    -ldflags "$(GO_LDFLAGS)" \
 		-output="out/binaries/$(NAME)-{{.OS}}-{{.Arch}}" \
 		$(PKG)
-
+	./rename-binaries.sh
+	GOARM=5 gox -os 'linux' -arch arm \
+	    -ldflags "$(GO_LDFLAGS)" \
+		-output="out/binaries/$(NAME)-Linux-armv5l" \
+		$(PKG)
+	GOARM=6 gox -os 'linux' -arch arm \
+	    -ldflags "$(GO_LDFLAGS)" \
+		-output="out/binaries/$(NAME)-Linux-armv6l" \
+		$(PKG)
+	GOARM=7 gox -os 'linux' -arch arm \
+	    -ldflags "$(GO_LDFLAGS)" \
+		-output="out/binaries/$(NAME)-Linux-armv7l" \
+		$(PKG)
 
 build_current: deps
 	# Building $(NAME) in version $(VERSION) for current platform
