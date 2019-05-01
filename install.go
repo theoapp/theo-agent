@@ -19,18 +19,12 @@ type SshConfig struct {
 
 func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
-	if version[0] > 7 || (version[0] == 7 && version[1] > 4) {
-		if verify {
-			commandOpts = "-fingerprint %f -verify %u"
-		} else {
-			commandOpts = "-fingerprint %f %u"
-		}
+	if version[0] < 7 && (version[0] == 6 && version[1] < 9) {
+		commandOpts = ""
+	} else if version[0] > 7 || (version[0] == 7 && version[1] >= 4) {
+		commandOpts = "-fingerprint %f %u"
 	} else {
-		if verify {
-			commandOpts = "-verify %u"
-		} else {
-			commandOpts = "%u"
-		}
+		commandOpts = "%u"
 	}
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
@@ -157,7 +151,7 @@ func checkConfig() {
 func writeConfigYaml() {
 	_publicKeyPath := ""
 	if *verify {
-		_publicKeyPath = fmt.Sprintf("public_key: %s\n", *publicKeyPath)
+		_publicKeyPath = fmt.Sprintf("verify: True\npublic_key: %s\n", *publicKeyPath)
 	}
 	config := fmt.Sprintf("url: %s\ntoken: %s\n%s", *theoURL, *theoAccessToken, _publicKeyPath)
 	f, err := os.Create(*configFilePath)
@@ -197,7 +191,7 @@ func doEditSshdConfig(version [2]int64) bool {
 		for ii < len(sshconfigs) {
 			p := strings.Index(line, sshconfigs[ii].key)
 			if p >= 0 {
-				lines[i] = fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value)
+				lines[i] = strings.Trim(fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value), " ")
 				sshconfigs = remove(sshconfigs, ii)
 				break
 			}
@@ -207,7 +201,7 @@ func doEditSshdConfig(version [2]int64) bool {
 	}
 	ii := 0
 	for ii < len(sshconfigs) {
-		lines = append(lines, fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value))
+		lines = append(lines, strings.Trim(fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value), " "))
 		ii++
 	}
 
