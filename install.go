@@ -19,12 +19,10 @@ type SshConfig struct {
 
 func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
-	if version[0] < 7 && (version[0] == 6 && version[1] < 9) {
+	if version[0] < 6 || (version[0] == 6 && version[1] < 9) {
 		commandOpts = ""
-	} else if version[0] > 7 || (version[0] == 7 && version[1] >= 4) {
-		commandOpts = "-fingerprint %f %u"
 	} else {
-		commandOpts = "%u"
+		commandOpts = "-fingerprint %f %u"
 	}
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
