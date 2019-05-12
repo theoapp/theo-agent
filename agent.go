@@ -93,19 +93,30 @@ func Query(user string) {
 		}
 	}
 	for i := 0; i < len(keys); i++ {
-		fmt.Printf("%s\n", keys[i].PublicKey)
 		if keys[i].Account != "" {
 			if *sshFingerprint != "" {
 				sshpk := parseSSHPublicKey(keys[i].PublicKey)
 				f := ssh.FingerprintSHA256(sshpk)
 				if f == *sshFingerprint {
+					_, err := fmt.Printf("%s\n", keys[i].PublicKey)
+					if err != nil {
+						break
+					}
 					a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
 					if b == nil {
 						a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
-					} else {
-
 					}
 				}
+			} else {
+				_, err := fmt.Printf("%s\n", keys[i].PublicKey)
+				if err != nil {
+					break
+				}
+			}
+		} else {
+			_, err := fmt.Printf("%s\n", keys[i].PublicKey)
+			if err != nil {
+				break
 			}
 		}
 	}
