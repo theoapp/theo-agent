@@ -25,10 +25,10 @@ var theoAccessToken = flag.String("token", "", "Theo access token")
 var verify = flag.Bool("verify", false, "Verify keys' signatures")
 var publicKeyPath = flag.String("public-key", "", "Public key path - Used to verify signature")
 var configFilePath = flag.String("config-file", K_CONFIG_FILE, "Path to theo agent config file")
-var cacheDirPath = flag.String("cache-path", K_CACHE_PATH, "Path to store cached authorized_keys file")
+var cacheDirPath = flag.String("cache-path", "", fmt.Sprintf("Path to store cached authorized_keys file (default %s)", K_CACHE_PATH))
 var editSshdConfig = flag.Bool("sshd-config", false, "Edit sshd_config")
 var pathSshdConfig = flag.String("sshd-config-path", "/etc/ssh/sshd_config", "The path to sshd_config")
-var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the	key or certificate. (Token %f)")
+var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the key or certificate. (Token %f)")
 
 func main() {
 	flag.Usage = func() {
@@ -51,5 +51,6 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	Query(flag.Arg(0), nil, nil)
+
+	Query(flag.Arg(0))
 }

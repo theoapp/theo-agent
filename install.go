@@ -17,6 +17,8 @@ type SshConfig struct {
 	value string
 }
 
+var _cacheDirPath string
+
 func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
 	if version[0] < 6 || (version[0] == 6 && version[1] < 9) {
@@ -26,7 +28,7 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	}
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
-		SshConfig{"AuthorizedKeysFile", `/var/cache/theo-agent/%u`},
+		SshConfig{"AuthorizedKeysFile", fmt.Sprintf("%s%s", _cacheDirPath, `/%u`)},
 		SshConfig{"AuthorizedKeysCommand", fmt.Sprintf("/usr/sbin/theo-agent %s", commandOpts)},
 		SshConfig{"AuthorizedKeysCommandUser", user},
 	}
@@ -43,6 +45,11 @@ func Install() {
 	prepareInstall()
 	checkConfig()
 	version := [2]int64{major, minor}
+	if *cacheDirPath != "" {
+		_cacheDirPath = *cacheDirPath
+	} else {
+		_cacheDirPath = K_CACHE_PATH
+	}
 	mkdirs()
 	writeConfigYaml()
 	if *editSshdConfig {
@@ -110,14 +117,15 @@ func askOnce(prompt string, result *string) {
 }
 
 func mkdirs() {
-	dirs := [2]string{path.Dir(*configFilePath), *cacheDirPath}
+
+	dirs := [2]string{path.Dir(*configFilePath), _cacheDirPath}
 	for i := 0; i < len(dirs); i++ {
 		ensureDir(dirs[i])
 	}
 	user := lookupUser()
 	uid, err := strconv.Atoi(user.Uid)
 	if err == nil {
-		os.Chown(*cacheDirPath, uid, -1)
+		os.Chown(_cacheDirPath, uid, -1)
 	}
 }
 
@@ -140,7 +148,7 @@ func ensureDir(path string) {
 }
 
 func checkConfig() {
-	ret := Query("test", theoURL, theoAccessToken)
+	_, ret := performQuery("test", *theoURL, *theoAccessToken)
 	if ret > 0 {
 		panic(fmt.Sprintf("Check failed, unable to retrieve keys from %s", *theoURL))
 	}
@@ -151,7 +159,10 @@ func writeConfigYaml() {
 	if *verify {
 		_publicKeyPath = fmt.Sprintf("verify: True\npublic_key: %s\n", *publicKeyPath)
 	}
-	config := fmt.Sprintf("url: %s\ntoken: %s\n%s", *theoURL, *theoAccessToken, _publicKeyPath)
+
+	__cacheDirPath := fmt.Sprintf("cachedir: %s\n", _cacheDirPath)
+
+	config := fmt.Sprintf("url: %s\ntoken: %s\n%s%s", *theoURL, *theoAccessToken, _publicKeyPath, __cacheDirPath)
 	f, err := os.Create(*configFilePath)
 	if err != nil {
 		if *debug {

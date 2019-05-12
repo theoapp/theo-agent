@@ -32,20 +32,34 @@ type Key struct {
 
 var parser Verifier
 
+var config map[string]string
+
 // Query makes a request to Theo server at url sending auth token for the requested user
-func Query(user string, url *string, token *string) int {
-	if url == nil || token == nil {
-		config, ret := parseConfig()
-		if ret > 0 {
-			os.Exit(ret)
-		}
-		var keys []Key
-		body, ret := performQuery(user, config["url"], config["token"])
-		if ret == 0 {
-			var _publicKeyPath string
-			_verify := false
+func Query(user string) {
+	var ret int
+	config, ret = parseConfig()
+	if ret > 0 {
+		os.Exit(ret)
+	}
+	var keys []Key
+	_theoURL := config["url"]
+	if *theoURL != "" {
+		_theoURL = *theoURL
+	}
+	_theoToken := config["token"]
+	if *theoAccessToken != "" {
+		_theoToken = *theoAccessToken
+	}
+	body, ret := performQuery(user, _theoURL, _theoToken)
+	if ret == 0 {
+		var _publicKeyPath string
+		_verify := false
+		if *verify {
+			_verify = true
+		} else {
+
 			if *verify {
-				_verify = true
+				_verify = *verify
 			} else {
 				if val, ok := config["verify"]; ok {
 					if s, err := strconv.ParseBool(val); err == nil {
@@ -53,53 +67,50 @@ func Query(user string, url *string, token *string) int {
 					}
 				}
 			}
-			if _verify {
-				if *publicKeyPath != "" {
-					_publicKeyPath = *publicKeyPath
-				} else {
-					_publicKeyPath = config["public_key"]
-				}
-				if _publicKeyPath == "" {
-					fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
-					os.Exit(10)
-				}
-			}
-			var err error
-			keys, err = verifyKeys(_publicKeyPath, body)
-			if err != nil {
-				os.Exit(9)
-			}
-			ret = writeCacheFile(user, keys)
 		}
-		if ret != 0 {
-			ret, keys = retFromFile(user)
-			if ret > 0 {
-				os.Exit(9)
+		if _verify {
+			if *publicKeyPath != "" {
+				_publicKeyPath = *publicKeyPath
+			} else {
+				_publicKeyPath = config["public_key"]
+			}
+			if _publicKeyPath == "" {
+				fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
+				os.Exit(10)
 			}
 		}
-		for i := 0; i < len(keys); i++ {
-			fmt.Printf("%s\n", keys[i].PublicKey)
-			if keys[i].Account != "" {
-				if *sshFingerprint != "" {
-					sshpk := parseSSHPublicKey(keys[i].PublicKey)
-					f := ssh.FingerprintSHA256(sshpk)
-					if f == *sshFingerprint {
-						a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
-						if b == nil {
-							a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
-						} else {
+		var err error
+		keys, err = verifyKeys(_publicKeyPath, body)
+		if err != nil {
+			os.Exit(9)
+		}
+		ret = writeCacheFile(user, keys)
+	}
+	if ret != 0 {
+		ret, keys = retFromFile(user)
+		if ret > 0 {
+			os.Exit(9)
+		}
+	}
+	for i := 0; i < len(keys); i++ {
+		fmt.Printf("%s\n", keys[i].PublicKey)
+		if keys[i].Account != "" {
+			if *sshFingerprint != "" {
+				sshpk := parseSSHPublicKey(keys[i].PublicKey)
+				f := ssh.FingerprintSHA256(sshpk)
+				if f == *sshFingerprint {
+					a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
+					if b == nil {
+						a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
+					} else {
 
-						}
 					}
 				}
 			}
 		}
-		os.Exit(ret)
-	} else {
-		_, ret := performQuery(user, *url, *token)
-		return ret
 	}
-	return 0
+	os.Exit(ret)
+
 }
 
 func performQuery(user string, url string, token string) ([]byte, int) {
@@ -159,7 +170,15 @@ func writeCacheFile(user string, keys []Key) int {
 }
 
 func getUserFilename(user string) string {
-	return fmt.Sprintf("%s/.%s.json", *cacheDirPath, user)
+	_cacheDirPath := config["cachedir"]
+	if *cacheDirPath != "" {
+		_cacheDirPath = *cacheDirPath
+	}
+	if _cacheDirPath == "" {
+		_cacheDirPath = K_CACHE_PATH
+	}
+	fmt.Fprintf(os.Stderr, "cacheDir: %s\n", _cacheDirPath)
+	return fmt.Sprintf("%s/.%s.json", _cacheDirPath, user)
 }
 
 func retFromFile(user string) (int, []Key) {
