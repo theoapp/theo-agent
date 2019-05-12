@@ -14,7 +14,9 @@ import (
 	"net/http"
 	urlu "net/url"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	gsyslog "github.com/hashicorp/go-syslog"
 	"golang.org/x/crypto/ssh"
@@ -92,6 +94,7 @@ func Query(user string) {
 			os.Exit(9)
 		}
 	}
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
 	for i := 0; i < len(keys); i++ {
 		if keys[i].Account != "" {
 			if *sshFingerprint != "" {
