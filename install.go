@@ -26,6 +26,7 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	} else {
 		commandOpts = "-fingerprint %f %u"
 	}
+
 	var sshconfigs = []SshConfig{
 		SshConfig{"PasswordAuthentication", "no"},
 		SshConfig{"AuthorizedKeysFile", fmt.Sprintf("%s%s", _cacheDirPath, `/%u`)},
@@ -39,7 +40,7 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 func Install() {
 	major, minor := getSSHDVersion()
 	if major < 6 || (major == 6 && minor < 2) {
-		fmt.Fprintf(os.Stderr, "Current OpenSSH version (%d.%d) does not support AuthorizedKeysCommand which is available since 6.2\n", major, minor)
+		fmt.Fprintf(os.Stderr, "Current OpenSSH version (%d.%d) does not support AuthorizedKeysCommand which is available from version 6.2\n", major, minor)
 		os.Exit(1)
 	}
 	prepareInstall()
