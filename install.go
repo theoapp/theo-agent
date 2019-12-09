@@ -28,11 +28,15 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	}
 
 	var sshconfigs = []SshConfig{
-		SshConfig{"PasswordAuthentication", "no"},
 		SshConfig{"AuthorizedKeysFile", fmt.Sprintf("%s%s", _cacheDirPath, `/%u`)},
 		SshConfig{"AuthorizedKeysCommand", fmt.Sprintf("/usr/sbin/theo-agent %s", commandOpts)},
 		SshConfig{"AuthorizedKeysCommandUser", user},
 	}
+
+	if !*passwordAuthentication {
+		sshconfigs = append(sshconfigs, SshConfig{"PasswordAuthentication", "no"})
+	}
+
 	return sshconfigs
 }
 

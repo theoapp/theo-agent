@@ -31,6 +31,7 @@ var pathSshdConfig = flag.String("sshd-config-path", "/etc/ssh/sshd_config", "Th
 var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the key or certificate. (Token %f)")
 var cfgHostnamePrefix = flag.String("hostname-prefix", "", "Add a prefix to hostname when query server")
 var cfgHostnameSuffix = flag.String("hostname-suffix", "", "Add a suffix to hostname when query server")
+var passwordAuthentication = flag.Bool("with-password-authentication", false, "sshd: do not disable PasswordAuthentication (Use it only when testing!)")
 
 func main() {
 	flag.Usage = func() {
