@@ -163,7 +163,16 @@ func writeConfigYaml() {
 
 	__cacheDirPath := fmt.Sprintf("cachedir: %s\n", _cacheDirPath)
 
-	config := fmt.Sprintf("url: %s\ntoken: %s\n%s%s", *theoURL, *theoAccessToken, _publicKeyPath, __cacheDirPath)
+	_hostnamePrefix := ""
+	if *cfgHostnamePrefix != "" {
+		_hostnamePrefix = fmt.Sprintf("hostname-prefix: %s\n", *cfgHostnamePrefix)
+	}
+	_hostnameSuffix := ""
+	if *cfgHostnameSuffix != "" {
+		_hostnameSuffix = fmt.Sprintf("hostname-suffix: %s\n", *cfgHostnameSuffix)
+	}
+
+	config := fmt.Sprintf("url: %s\ntoken: %s\n%s%s%s%s", *theoURL, *theoAccessToken, _publicKeyPath, __cacheDirPath, _hostnamePrefix, _hostnameSuffix)
 	f, err := os.Create(*configFilePath)
 	if err != nil {
 		if *debug {

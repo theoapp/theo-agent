@@ -230,6 +230,22 @@ func loadHostname() (hostname string) {
 		}
 		os.Exit(6)
 	}
+	if *cfgHostnamePrefix != "" {
+		hostname = fmt.Sprintf("%s%s", *cfgHostnamePrefix, hostname)
+	} else {
+		hostnamePrefix := config["hostname-prefix"]
+		if hostnamePrefix != "" {
+			hostname = fmt.Sprintf("%s%s", hostnamePrefix, hostname)
+		}
+	}
+	if *cfgHostnameSuffix != "" {
+		hostname = fmt.Sprintf("%s%s", *cfgHostnameSuffix, hostname)
+	} else {
+		hostnameSuffix := config["hostname-suffix"]
+		if hostnameSuffix != "" {
+			hostname = fmt.Sprintf("%s%s", hostname, hostnameSuffix)
+		}
+	}
 	return
 }
 

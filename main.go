@@ -29,6 +29,8 @@ var cacheDirPath = flag.String("cache-path", "", fmt.Sprintf("Path to store cach
 var editSshdConfig = flag.Bool("sshd-config", false, "Edit sshd_config")
 var pathSshdConfig = flag.String("sshd-config-path", "/etc/ssh/sshd_config", "The path to sshd_config")
 var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the key or certificate. (Token %f)")
+var cfgHostnamePrefix = flag.String("hostname-prefix", "", "Add a prefix to hostname when query server")
+var cfgHostnameSuffix = flag.String("hostname-suffix", "", "Add a suffix to hostname when query server")
 
 func main() {
 	flag.Usage = func() {
