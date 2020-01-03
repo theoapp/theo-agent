@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -17,6 +18,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	gsyslog "github.com/hashicorp/go-syslog"
 	"golang.org/x/crypto/ssh"
@@ -53,13 +55,13 @@ func Query(user string) {
 		_theoToken = *theoAccessToken
 	}
 	body, ret := performQuery(user, _theoURL, _theoToken)
+	userCacheFile := getUserFilename(user)
 	if ret == 0 {
 		var _publicKeyPath string
 		_verify := false
 		if *verify {
 			_verify = true
 		} else {
-
 			if *verify {
 				_verify = *verify
 			} else {
@@ -86,11 +88,14 @@ func Query(user string) {
 		if err != nil {
 			os.Exit(9)
 		}
-		ret = writeCacheFile(user, keys)
-	}
-	if ret != 0 {
-		ret, keys = retFromFile(user)
+		ret = writeCacheFile(userCacheFile, keys)
+	} else {
+		if *debug {
+			fmt.Fprintf(os.Stderr, "Try to read cached keys\n")
+		}
+		ret, keys = retFromFile(userCacheFile)
 		if ret > 0 {
+			fmt.Fprintf(os.Stderr, "Failed to read cached keys\n")
 			os.Exit(9)
 		}
 	}
@@ -134,6 +139,9 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 	if *sshFingerprint != "" {
 		remoteURL = fmt.Sprintf("%s?f=%s", remoteURL, urlu.QueryEscape(*sshFingerprint))
 	}
+	if *debug {
+		fmt.Fprintf(os.Stderr, "Theo URL %s\n", remoteURL)
+	}
 	req, err := http.NewRequest(http.MethodGet, remoteURL, nil)
 	if err != nil {
 		if *debug {
@@ -141,12 +149,22 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		}
 		return nil, 8
 	}
-
+	DEFAULT_TIMEOUT := int64(5000)
+	_timeout := DEFAULT_TIMEOUT
+	if config["timeout"] != "" {
+		_timeout, err = strconv.ParseInt(config["timeout"], 10, 0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Wrong value for timeout, it must be an int (ms): %s\n", err)
+			_timeout = DEFAULT_TIMEOUT
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(_timeout)*time.Millisecond)
+	defer cancel()
 	req.Header.Set("User-Agent", common.AppVersion.UserAgent())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to fetch authorized_keys (%s): %s\n", remoteURL, err)
@@ -171,12 +189,12 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 	return body, 0
 }
 
-func writeCacheFile(user string, keys []Key) int {
+func writeCacheFile(userCacheFile string, keys []Key) int {
 	body, _ := json.Marshal(keys)
-	err := ioutil.WriteFile(getUserFilename(user), body, 0644)
+	err := ioutil.WriteFile(userCacheFile, body, 0644)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write cache file (%s): %s\n", getUserFilename(user), err)
+			fmt.Fprintf(os.Stderr, "Unable to write cache file (%s): %s\n", userCacheFile, err)
 		}
 		return 21
 	}
@@ -191,15 +209,17 @@ func getUserFilename(user string) string {
 	if _cacheDirPath == "" {
 		_cacheDirPath = K_CACHE_PATH
 	}
-	fmt.Fprintf(os.Stderr, "cacheDir: %s\n", _cacheDirPath)
+	if *debug {
+		fmt.Fprintf(os.Stderr, "cacheDir: %s\n", _cacheDirPath)
+	}
 	return fmt.Sprintf("%s/.%s.json", _cacheDirPath, user)
 }
 
-func retFromFile(user string) (int, []Key) {
-	dat, err := ioutil.ReadFile(getUserFilename(user))
+func retFromFile(userCacheFile string) (int, []Key) {
+	dat, err := ioutil.ReadFile(userCacheFile)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to read cache file (%s): %s\n", getUserFilename(user), err)
+			fmt.Fprintf(os.Stderr, "Unable to read cache file (%s): %s\n", userCacheFile, err)
 		}
 		return 0, nil
 	}
@@ -269,7 +289,9 @@ func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
 
 	// keys := make([]Key, 0)
 	var keys []Key
-	var retKeys []Key
+	retKeys := make([]Key, 0)
+	// var retKeys []Key
+
 	if err := json.Unmarshal(body, &keys); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to parse json response : %s\n", err)
 		return nil, err
