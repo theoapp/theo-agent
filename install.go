@@ -222,7 +222,7 @@ func doEditSshdConfig(version [2]int64) bool {
 
 		for ii < len(sshconfigs) {
 			p := strings.Index(line, sshconfigs[ii].key)
-			if p >= 0 {
+			if p == 0 {
 				lines[i] = strings.Trim(fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value), " ")
 				sshconfigs = remove(sshconfigs, ii)
 				break
