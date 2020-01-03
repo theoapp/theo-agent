@@ -196,14 +196,23 @@ func writeConfigYaml() {
 }
 
 func doEditSshdConfig(version [2]int64) bool {
-
 	data, err := ioutil.ReadFile(*pathSshdConfig)
 	if err != nil {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to read %s, %s", *pathSshdConfig, err)
+			fmt.Fprintf(os.Stderr, "Unable to read %s, %s\n", *pathSshdConfig, err)
 		}
 		return false
 	}
+
+	if *backupSshdConfig {
+		pathSshdConfigBackup := fmt.Sprintf("%s%s", *pathSshdConfig, ".backup")
+		err = ioutil.WriteFile(pathSshdConfigBackup, data, 0640)
+		if err != nil {
+			fmt.Println("Error creating sshd_config backup file", pathSshdConfigBackup)
+			fmt.Println(err)
+		}
+	}
+
 	lines := strings.Split(string(data), "\n")
 	i := 0
 	sshconfigs := getSshConfigs(*theoUser, *verify, version)

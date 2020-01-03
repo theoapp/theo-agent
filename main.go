@@ -27,6 +27,7 @@ var publicKeyPath = flag.String("public-key", "", "Public key path - Used to ver
 var configFilePath = flag.String("config-file", K_CONFIG_FILE, "Path to theo agent config file")
 var cacheDirPath = flag.String("cache-path", "", fmt.Sprintf("Path to store cached authorized_keys file (default %s)", K_CACHE_PATH))
 var editSshdConfig = flag.Bool("sshd-config", false, "Edit sshd_config")
+var backupSshdConfig = flag.Bool("sshd-config-backup", false, "Make a backup copy of sshd_config")
 var pathSshdConfig = flag.String("sshd-config-path", "/etc/ssh/sshd_config", "The path to sshd_config")
 var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the key or certificate. (Token %f)")
 var cfgHostnamePrefix = flag.String("hostname-prefix", "", "Add a prefix to hostname when query server")
