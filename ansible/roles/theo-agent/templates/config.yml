@@ -1,4 +1,0 @@
-# {{ ansible_managed }}
-url: {{ theo_url }}
-token: {{ theo_agent_token }}
-public_key: {{ theo_public_key_path | default("")}}
