@@ -32,11 +32,45 @@ type Key struct {
 	PublicKey    string `json:"public_key"`
 	PublicKeySig string `json:"public_key_sig"`
 	Account      string `json:"email"`
+	SSHOptions   string `json:"ssh_options"`
 }
 
 var parser Verifier
 
 var config map[string]string
+
+func mustVerify() bool {
+	_verify := false
+	if *verify {
+		_verify = true
+	} else {
+		if *verify {
+			_verify = *verify
+		} else {
+			if val, ok := config["verify"]; ok {
+				if s, err := strconv.ParseBool(val); err == nil {
+					_verify = s
+				}
+			}
+		}
+	}
+	return _verify
+}
+
+func getPublicKeyPath() string {
+	var _publicKeyPath string
+
+	if *publicKeyPath != "" {
+		_publicKeyPath = *publicKeyPath
+	} else {
+		_publicKeyPath = config["public_key"]
+	}
+	if _publicKeyPath == "" {
+		fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
+		os.Exit(10)
+	}
+	return _publicKeyPath
+}
 
 // Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string) {
@@ -55,36 +89,14 @@ func Query(user string) {
 		_theoToken = *theoAccessToken
 	}
 	body, ret := performQuery(user, _theoURL, _theoToken)
+	if *debug {
+		fmt.Fprintf(os.Stderr, "%s", body)
+	}
 	userCacheFile := getUserFilename(user)
+	_verify := mustVerify()
 	if ret == 0 {
-		var _publicKeyPath string
-		_verify := false
-		if *verify {
-			_verify = true
-		} else {
-			if *verify {
-				_verify = *verify
-			} else {
-				if val, ok := config["verify"]; ok {
-					if s, err := strconv.ParseBool(val); err == nil {
-						_verify = s
-					}
-				}
-			}
-		}
-		if _verify {
-			if *publicKeyPath != "" {
-				_publicKeyPath = *publicKeyPath
-			} else {
-				_publicKeyPath = config["public_key"]
-			}
-			if _publicKeyPath == "" {
-				fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
-				os.Exit(10)
-			}
-		}
 		var err error
-		keys, err = verifyKeys(_publicKeyPath, body)
+		keys, err = loadKeysFromBody(body)
 		if err != nil {
 			os.Exit(9)
 		}
@@ -93,43 +105,65 @@ func Query(user string) {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Try to read cached keys\n")
 		}
-		ret, keys = retFromFile(userCacheFile)
+		ret, keys = loadCacheFile(userCacheFile)
 		if ret > 0 {
 			fmt.Fprintf(os.Stderr, "Failed to read cached keys\n")
 			os.Exit(9)
 		}
 	}
+	if _verify {
+		var err error
+		_publicKeyPath := getPublicKeyPath()
+		keys, err = verifyKeys(_publicKeyPath, keys)
+		if err != nil {
+			os.Exit(9)
+		}
+	}
+	printAuthorizedKeys(user, keys)
+	os.Exit(ret)
+}
+
+func printAuthorizedKeys(user string, keys []Key) {
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
+	gotAccount := false
 	for i := 0; i < len(keys); i++ {
+		if gotAccount {
+			break
+		}
+		if *debug {
+			fmt.Fprintf(os.Stderr, "Got SSH options? -> %s\n", keys[i].SSHOptions)
+		}
 		if keys[i].Account != "" {
 			if *sshFingerprint != "" {
 				sshpk := parseSSHPublicKey(keys[i].PublicKey)
 				f := ssh.FingerprintSHA256(sshpk)
 				if f == *sshFingerprint {
-					_, err := fmt.Printf("%s\n", keys[i].PublicKey)
-					if err != nil {
-						break
-					}
 					a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
 					if b == nil {
 						a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
 					}
+					gotAccount = true
+				} else {
+					continue
 				}
-			} else {
-				_, err := fmt.Printf("%s\n", keys[i].PublicKey)
-				if err != nil {
-					break
-				}
-			}
-		} else {
-			_, err := fmt.Printf("%s\n", keys[i].PublicKey)
-			if err != nil {
-				break
 			}
 		}
+		_, err := fmt.Printf(getAuthorizedKeysLine(keys[i]))
+		if err != nil {
+			break
+		}
 	}
-	os.Exit(ret)
+}
 
+func getAuthorizedKeysLine(key Key) string {
+	return fmt.Sprintf("%s%s\n", getSSHOptions(key.SSHOptions), key.PublicKey)
+}
+
+func getSSHOptions(sshOptions string) string {
+	if sshOptions == "" {
+		return sshOptions
+	}
+	return fmt.Sprintf("%s ", sshOptions)
 }
 
 func performQuery(user string, url string, token string) ([]byte, int) {
@@ -215,7 +249,7 @@ func getUserFilename(user string) string {
 	return fmt.Sprintf("%s/.%s.json", _cacheDirPath, user)
 }
 
-func retFromFile(userCacheFile string) (int, []Key) {
+func loadCacheFile(userCacheFile string) (int, []Key) {
 	dat, err := ioutil.ReadFile(userCacheFile)
 	if err != nil {
 		if *debug {
@@ -285,19 +319,18 @@ func parseConfig() (map[string]string, int) {
 	return config, 0
 }
 
-func verifyKeys(publicKeyPath string, body []byte) ([]Key, error) {
-
-	// keys := make([]Key, 0)
+func loadKeysFromBody(body []byte) ([]Key, error) {
 	var keys []Key
-	retKeys := make([]Key, 0)
-	// var retKeys []Key
-
 	if err := json.Unmarshal(body, &keys); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to parse json response : %s\n", err)
 		return nil, err
 	}
+	return keys, nil
+}
 
+func verifyKeys(publicKeyPath string, keys []Key) ([]Key, error) {
 	var perr error
+	retKeys := make([]Key, 0)
 	if publicKeyPath != "" {
 		perr = loadPublicKey(publicKeyPath)
 		if perr != nil {
