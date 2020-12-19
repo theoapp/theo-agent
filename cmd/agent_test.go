@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"encoding/hex"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestVer(t *testing.T) {
-	err := loadPublicKey("./test/public.pem")
+	err := loadPublicKey("../test/public.pem")
 	if err != nil {
 		t.Errorf("loadPublicKey should return nil %s", err)
 	}
