@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15.x
+      - name: Cross build
+        run: |
+          GOOS=linux GOARCH=386 make -e buildx
+          GOOS=linux GOARCH=amd64 make -e buildx
+          GOOS=linux GOARCH=arm GOARM=5 make -e buildx
+          GOOS=linux GOARCH=arm GOARM=6 make -e buildx
+          GOOS=linux GOARCH=arm GOARM=7 make -e buildx
+          GOOS=linux GOARCH=arm64 make -e buildx
+          GOOS=darwin GOARCH=amd64 make -e buildx
+          GOOS=freebsd GOARCH=amd64 make -e buildx
+          GOOS=openbsd GOARCH=amd64 make -e buildx
+          GOOS=netbsd GOARCH=amd64 make -e buildx
+      - name: Create Release
+        uses: actions/create-release@v1.0.0
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Assets
+        uses: glentiki/xbin-release-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          assets_path: ./build
