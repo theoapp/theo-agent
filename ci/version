@@ -9,7 +9,7 @@ if [[ $(echo ${exact_tag} | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$") ]]; then
     exit 0
 fi
 
-if [[ $(echo ${exact_tag} | grep -E "^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$") ]]; then
+if [[ $(echo ${exact_tag} | grep -E "^[0-9]+\.[0-9]+\.[0-9]+-(rc|beta|alpha)[0-9]+$") ]]; then
     echo $exact_tag
     exit 0
 fi
@@ -18,4 +18,5 @@ last_tag=$(git log --first-parent --pretty="%d" | grep -E "tag: v[0-9]+\.[0-9]+\
 commits=$(git log --oneline ${last_tag}..HEAD | wc -l | tr -d ' ')
 revision=$(git rev-parse --short=8 HEAD || echo unknown)
 
-echo "${commits}.g${revision}"
+dirty=$([[ -z $(git status --porcelain) ]] || echo "-dirty")
+echo "$(echo $last_tag | sed -e 's/^v//g' )+${commits}.g${revision}${dirty}"
