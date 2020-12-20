@@ -1,0 +1,14 @@
+[
+    {
+        "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN8g05+ZeElAFktcrUpUyuAsfoNrPk4eH+T2Z20KdBrA macno@jalapeno",
+        "public_key_sig": "",
+        "email": "macno@macno.org",
+        "ssh_options": "from=\"192.168.2.1,10.10.0.0\""
+    },
+    {
+        "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN8g05+ZeElAFktcrUpUyuAsfoNrPk4eH+T2Z20KdBrA macno@jalapeno",
+        "public_key_sig": "",
+        "email": "macno@macno.org",
+        "ssh_options": ""
+    }
+]
