@@ -58,6 +58,23 @@ func TestSignaturesWithBrokenSignature(t *testing.T) {
 	}
 }
 
+func TestBrokenKey(t *testing.T) {
+	userCacheFile := "../test/test.broken.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		fmt.Fprintf(os.Stderr, "Failed to read cached keys\n")
+		os.Exit(9)
+	}
+	var err error
+	keys, err = verifyKeys("../test/public.pem", keys)
+	if err != nil {
+		t.Errorf("Failed to verify keys")
+	}
+	if len(keys) != 0 {
+		t.Errorf("Keys len must be %d, got %d", 0, len(keys))
+	}
+}
+
 func TestFingerprint(t *testing.T) {
 	userCacheFile := "../test/test.signatures.json"
 	ret, keys := loadCacheFile(userCacheFile)
