@@ -93,7 +93,6 @@ func Query(user string) {
 		fmt.Fprintf(os.Stderr, "%s", body)
 	}
 	userCacheFile := getUserFilename(user)
-	_verify := mustVerify()
 	if ret == 0 {
 		var err error
 		keys, err = loadKeysFromBody(body)
@@ -103,7 +102,7 @@ func Query(user string) {
 		ret = writeCacheFile(userCacheFile, keys)
 	} else {
 		if *debug {
-			fmt.Fprintf(os.Stderr, "Try to read cached keys\n")
+			fmt.Fprintf(os.Stderr, "Try to read cached keys for %s\n", user)
 		}
 		ret, keys = loadCacheFile(userCacheFile)
 		if ret > 0 {
@@ -111,7 +110,7 @@ func Query(user string) {
 			os.Exit(9)
 		}
 	}
-	if _verify {
+	if mustVerify() {
 		var err error
 		_publicKeyPath := getPublicKeyPath()
 		keys, err = verifyKeys(_publicKeyPath, keys)
@@ -119,35 +118,35 @@ func Query(user string) {
 			os.Exit(9)
 		}
 	}
-	printAuthorizedKeys(user, keys)
+	if *sshFingerprint != "" {
+		keys = filterKeysByFingerprint(*sshFingerprint, user, keys)
+	}
+	printAuthorizedKeys(keys)
 	os.Exit(ret)
 }
 
-func printAuthorizedKeys(user string, keys []Key) {
-	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
-	gotAccount := false
+func filterKeysByFingerprint(fingerprint string, user string, keys []Key) []Key {
+	retKeys := make([]Key, 0)
 	for i := 0; i < len(keys); i++ {
-		if gotAccount {
-			break
-		}
-		if *debug {
-			fmt.Fprintf(os.Stderr, "Got SSH options? -> %s\n", keys[i].SSHOptions)
-		}
 		if keys[i].Account != "" {
-			if *sshFingerprint != "" {
-				sshpk := parseSSHPublicKey(keys[i].PublicKey)
-				f := ssh.FingerprintSHA256(sshpk)
-				if f == *sshFingerprint {
-					a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
-					if b == nil {
-						a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
-					}
-					gotAccount = true
-				} else {
-					continue
+			sshpk := parseSSHPublicKey(keys[i].PublicKey)
+			f := ssh.FingerprintSHA256(sshpk)
+			if f == fingerprint {
+				a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
+				if b == nil {
+					a.Write([]byte(fmt.Sprintf("Account %s logged in as %s\n", keys[i].Account, user)))
 				}
+				retKeys = append(retKeys, keys[i])
+				break
 			}
 		}
+	}
+	return retKeys
+}
+
+func printAuthorizedKeys(keys []Key) {
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
+	for i := 0; i < len(keys); i++ {
 		_, err := fmt.Printf(getAuthorizedKeysLine(keys[i]))
 		if err != nil {
 			break
