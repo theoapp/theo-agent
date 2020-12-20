@@ -25,6 +25,51 @@ func TestVer(t *testing.T) {
 	}
 }
 
+func TestSignatures(t *testing.T) {
+	userCacheFile := "../test/test.signatures.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		t.Errorf("Failed to read cached keys")
+	}
+	validKeys := len(keys)
+	var err error
+	keys, err = verifyKeys("../test/public2.pem", keys)
+	if err != nil {
+		t.Errorf("Failed to verify keys")
+	}
+	if len(keys) != validKeys {
+		t.Errorf("Keys len must be %d, got %d", validKeys, len(keys))
+	}
+}
+
+func TestSignaturesWithBrokenSignature(t *testing.T) {
+	userCacheFile := "../test/test.signatures.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		t.Errorf("Failed to read cached keys")
+	}
+	var err error
+	keys, err = verifyKeys("../test/public.pem", keys)
+	if err != nil {
+		t.Errorf("Failed to verify keys")
+	}
+	if len(keys) != 0 {
+		t.Errorf("Keys len must be %d, got %d", 0, len(keys))
+	}
+}
+
+func TestFingerprint(t *testing.T) {
+	userCacheFile := "../test/test.signatures.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		t.Errorf("Failed to read cached keys")
+	}
+	keys = filterKeysByFingerprint("SHA256:d4RXf2B0bUGDaG0UufCX3+vUVxKnIvvIgTYC3bGGH14", "test", keys)
+	if len(keys) != 1 {
+		t.Errorf("Keys len must be %d, got %d", 1, len(keys))
+	}
+}
+
 func TestSSHOptions(t *testing.T) {
 	userCacheFile := "../test/test.ssh_options.json"
 	ret, keys := loadCacheFile(userCacheFile)
