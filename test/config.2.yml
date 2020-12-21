@@ -1,0 +1,7 @@
+url: https://test.authkeys.io
+token: asdfds124231341413r143f1431
+cachedir: /var/cache/theo-agent
+verify: True
+public_key:
+  - /etc/theo-agent/public.pem
+  - /etc/theo-agent/public2.pem

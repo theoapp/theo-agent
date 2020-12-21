@@ -7,8 +7,32 @@ import (
 	"testing"
 )
 
+func TestParseConfig(t *testing.T) {
+	config, ret := parseConfig("../test/config.1.yml")
+	if ret > 0 {
+		t.Errorf("parseConfig failed")
+	}
+	if len(config.PublicKey) != 1 {
+		t.Errorf("public_keys len %d expected 1\n", len(config.PublicKey))
+	}
+	config, ret = parseConfig("../test/config.2.yml")
+	if ret > 0 {
+		t.Errorf("parseConfig failed")
+	}
+	if len(config.PublicKey) != 2 {
+		t.Errorf("public_keys len %d expected 2\n", len(config.PublicKey))
+	}
+	config, ret = parseConfig("../test/config.3.yml")
+	if ret > 0 {
+		t.Errorf("parseConfig failed")
+	}
+	if len(config.PublicKey) != 1 {
+		t.Errorf("public_keys len %d expected 1\n", len(config.PublicKey))
+	}
+}
+
 func TestVer(t *testing.T) {
-	err := loadPublicKey("../test/public.pem")
+	parser, err := loadPublicKey("../test/public.pem")
 	if err != nil {
 		t.Errorf("loadPublicKey should return nil %s", err)
 	}
@@ -25,6 +49,25 @@ func TestVer(t *testing.T) {
 	}
 }
 
+func TestVerEmbedPublicKey(t *testing.T) {
+	config, ret := parseConfig("../test/config.3.yml")
+	if ret > 0 {
+		t.Errorf("parseConfig failed")
+	}
+	userCacheFile := "../test/test.signature.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		fmt.Fprintf(os.Stderr, "Failed to read cached keys\n")
+		os.Exit(9)
+	}
+	parser, err := parsePublicKey([]byte(config.PublicKey[0]))
+	signature, _ := hex.DecodeString(keys[0].PublicKeySig)
+	err = parser.Verify([]byte(keys[0].PublicKey), signature)
+	if err != nil {
+		t.Errorf("signature verify failed")
+	}
+}
+
 func TestSignatures(t *testing.T) {
 	userCacheFile := "../test/test.signatures.json"
 	ret, keys := loadCacheFile(userCacheFile)
@@ -33,7 +76,7 @@ func TestSignatures(t *testing.T) {
 	}
 	validKeys := len(keys)
 	var err error
-	keys, err = verifyKeys("../test/public2.pem", keys)
+	keys, err = verifyKeys([]string{"../test/public2.pem"}, keys)
 	if err != nil {
 		t.Errorf("Failed to verify keys")
 	}
@@ -49,12 +92,28 @@ func TestSignaturesWithBrokenSignature(t *testing.T) {
 		t.Errorf("Failed to read cached keys")
 	}
 	var err error
-	keys, err = verifyKeys("../test/public.pem", keys)
+	keys, err = verifyKeys([]string{"../test/public.pem"}, keys)
 	if err != nil {
 		t.Errorf("Failed to verify keys")
 	}
 	if len(keys) != 0 {
 		t.Errorf("Keys len must be %d, got %d", 0, len(keys))
+	}
+}
+
+func TestVerifyKeysMultiplePublicKeys(t *testing.T) {
+	userCacheFile := "../test/test.signatures.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		t.Errorf("Failed to read cached keys")
+	}
+	var err error
+	keys, err = verifyKeys([]string{"../test/public.pem", "../test/public2.pem"}, keys)
+	if err != nil {
+		t.Errorf("Failed to verify keys")
+	}
+	if len(keys) != 5 {
+		t.Errorf("Keys len must be %d, got %d", 5, len(keys))
 	}
 }
 
@@ -66,7 +125,7 @@ func TestBrokenKey(t *testing.T) {
 		os.Exit(9)
 	}
 	var err error
-	keys, err = verifyKeys("../test/public.pem", keys)
+	keys, err = verifyKeys([]string{"../test/public.pem"}, keys)
 	if err != nil {
 		t.Errorf("Failed to verify keys")
 	}
