@@ -48,6 +48,17 @@ type Config struct {
 	HostnameSuffix string `yaml:"hostname-suffix"`
 }
 
+type rsaPublicKey struct {
+	*rsa.PublicKey
+}
+
+// Verifier verifies signature against a public key.
+type Verifier interface {
+	// Sign returns raw signature for the given data. This method
+	// will apply the hash specified for the keytype to the data.
+	Verify(data []byte, sig []byte) error
+}
+
 var config Config
 
 func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -427,17 +438,6 @@ func newVerifierFromKey(k interface{}) (Verifier, error) {
 		return nil, fmt.Errorf("rsa: unsupported key type %T", k)
 	}
 	return sshKey, nil
-}
-
-type rsaPublicKey struct {
-	*rsa.PublicKey
-}
-
-// Verifier verifies signature against a public key.
-type Verifier interface {
-	// Sign returns raw signature for the given data. This method
-	// will apply the hash specified for the keytype to the data.
-	Verify(data []byte, sig []byte) error
 }
 
 // Unsign verifies the message using a rsa-sha256 signature
