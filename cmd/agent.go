@@ -16,7 +16,7 @@ import (
 	urlu "net/url"
 	"os"
 	"os/signal"
-	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,56 +35,50 @@ type Key struct {
 	SSHOptions   string `json:"ssh_options"`
 }
 
-var parser Verifier
+type StringArray []string
 
-var config map[string]string
-
-func mustVerify() bool {
-	_verify := false
-	if *verify {
-		_verify = true
-	} else {
-		if *verify {
-			_verify = *verify
-		} else {
-			if val, ok := config["verify"]; ok {
-				if s, err := strconv.ParseBool(val); err == nil {
-					_verify = s
-				}
-			}
-		}
-	}
-	return _verify
+type Config struct {
+	URL            string `yaml:"url"`
+	Token          string
+	Cachedir       string
+	Verify         bool
+	PublicKey      StringArray `yaml:"public_key"`
+	Timeout        int64
+	HostnamePrefix string `yaml:"hostname-prefix"`
+	HostnameSuffix string `yaml:"hostname-suffix"`
 }
 
-func getPublicKeyPath() string {
-	var _publicKeyPath string
+var config Config
 
-	if *publicKeyPath != "" {
-		_publicKeyPath = *publicKeyPath
+func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var multi []string
+	err := unmarshal(&multi)
+	if err != nil {
+		var single string
+		err := unmarshal(&single)
+		if err != nil {
+			return err
+		}
+		*a = []string{single}
 	} else {
-		_publicKeyPath = config["public_key"]
+		*a = multi
 	}
-	if _publicKeyPath == "" {
-		fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
-		os.Exit(10)
-	}
-	return _publicKeyPath
+	return nil
 }
 
 // Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string) {
 	var ret int
-	config, ret = parseConfig()
+	config, ret = parseConfig("")
 	if ret > 0 {
 		os.Exit(ret)
 	}
 	var keys []Key
-	_theoURL := config["url"]
+	_theoURL := config.URL
 	if *theoURL != "" {
 		_theoURL = *theoURL
 	}
-	_theoToken := config["token"]
+	_theoToken := config.Token
 	if *theoAccessToken != "" {
 		_theoToken = *theoAccessToken
 	}
@@ -112,8 +106,8 @@ func Query(user string) {
 	}
 	if mustVerify() {
 		var err error
-		_publicKeyPath := getPublicKeyPath()
-		keys, err = verifyKeys(_publicKeyPath, keys)
+		publicKeys := getPublicKeys()
+		keys, err = verifyKeys(publicKeys, keys)
 		if err != nil {
 			os.Exit(9)
 		}
@@ -123,6 +117,31 @@ func Query(user string) {
 	}
 	printAuthorizedKeys(keys)
 	os.Exit(ret)
+}
+
+func mustVerify() bool {
+	_verify := false
+	if *verify {
+		_verify = true
+	} else {
+		_verify = config.Verify
+	}
+	return _verify
+}
+
+func getPublicKeys() []string {
+	_publicKeys := make([]string, 0)
+
+	if *publicKeyPath != "" {
+		_publicKeys = append(_publicKeys, *publicKeyPath)
+	} else {
+		_publicKeys = config.PublicKey
+	}
+	if len(_publicKeys) == 0 {
+		fmt.Fprintf(os.Stderr, "-verify flag is on, but no public key set")
+		os.Exit(10)
+	}
+	return _publicKeys
 }
 
 func filterKeysByFingerprint(fingerprint string, user string, keys []Key) []Key {
@@ -182,14 +201,10 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		}
 		return nil, 8
 	}
-	DEFAULT_TIMEOUT := int64(5000)
-	_timeout := DEFAULT_TIMEOUT
-	if config["timeout"] != "" {
-		_timeout, err = strconv.ParseInt(config["timeout"], 10, 0)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Wrong value for timeout, it must be an int (ms): %s\n", err)
-			_timeout = DEFAULT_TIMEOUT
-		}
+	DefaultTimeout := int64(5000)
+	_timeout := DefaultTimeout
+	if config.Timeout > 0 {
+		_timeout = config.Timeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(_timeout)*time.Millisecond)
 	defer cancel()
@@ -235,7 +250,7 @@ func writeCacheFile(userCacheFile string, keys []Key) int {
 }
 
 func getUserFilename(user string) string {
-	_cacheDirPath := config["cachedir"]
+	_cacheDirPath := config.Cachedir
 	if *cacheDirPath != "" {
 		_cacheDirPath = *cacheDirPath
 	}
@@ -264,8 +279,11 @@ func loadCacheFile(userCacheFile string) (int, []Key) {
 	return 0, keys
 }
 
-func loadConfig() ([]byte, int) {
-	data, err := ioutil.ReadFile(*configFilePath)
+func loadConfig(configFile string) ([]byte, int) {
+	if configFile == "" {
+		configFile = *configFilePath
+	}
+	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read configFile (%s): %s\n", *configFilePath, err)
@@ -286,34 +304,32 @@ func loadHostname() (hostname string) {
 	if *cfgHostnamePrefix != "" {
 		hostname = fmt.Sprintf("%s%s", *cfgHostnamePrefix, hostname)
 	} else {
-		hostnamePrefix := config["hostname-prefix"]
-		if hostnamePrefix != "" {
-			hostname = fmt.Sprintf("%s%s", hostnamePrefix, hostname)
+		if config.HostnamePrefix != "" {
+			hostname = fmt.Sprintf("%s%s", config.HostnamePrefix, hostname)
 		}
 	}
 	if *cfgHostnameSuffix != "" {
 		hostname = fmt.Sprintf("%s%s", *cfgHostnameSuffix, hostname)
 	} else {
-		hostnameSuffix := config["hostname-suffix"]
-		if hostnameSuffix != "" {
-			hostname = fmt.Sprintf("%s%s", hostname, hostnameSuffix)
+		if config.HostnameSuffix != "" {
+			hostname = fmt.Sprintf("%s%s", hostname, config.HostnameSuffix)
 		}
 	}
 	return
 }
 
-func parseConfig() (map[string]string, int) {
-	config := make(map[string]string)
-	data, ret := loadConfig()
+func parseConfig(configFile string) (Config, int) {
+	config := Config{}
+	data, ret := loadConfig(configFile)
 	if ret > 0 {
-		return nil, ret
+		return config, ret
 	}
 	err := yaml.Unmarshal([]byte(data), &config)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to parse config file (%s): %s\n", *configFilePath, err)
 		}
-		return nil, 7
+		return config, 7
 	}
 	return config, 0
 }
@@ -327,50 +343,63 @@ func loadKeysFromBody(body []byte) ([]Key, error) {
 	return keys, nil
 }
 
-func verifyKeys(publicKeyPath string, keys []Key) ([]Key, error) {
-	var perr error
-	retKeys := make([]Key, 0)
-	if publicKeyPath != "" {
-		perr = loadPublicKey(publicKeyPath)
-		if perr != nil {
-			fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
-			return nil, perr
-		}
-	}
+func verifyKeys(publicKey []string, keys []Key) ([]Key, error) {
 
-	for i := 0; i < len(keys); i++ {
-		key := keys[i]
-		if parser != nil {
-			signature, _ := hex.DecodeString(key.PublicKeySig)
-			err := parser.Verify([]byte(key.PublicKey), signature)
-			if err != nil {
-				if *debug {
-					fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
-				}
+	retKeys := make([]Key, 0)
+	for i := 0; i < len(publicKey); i++ {
+		var perr error
+		var parser Verifier
+		publicKey := strings.Trim(publicKey[i], " ")
+		if publicKey == "" {
+			continue
+		}
+		if strings.HasPrefix(publicKey, "-----BEGIN PUBLIC KEY-----") {
+			parser, perr = parsePublicKey([]byte(publicKey))
+			if perr != nil {
+				fmt.Fprintf(os.Stderr, "could not parse public key: %v\n", perr)
+				continue
+			}
+		} else {
+			parser, perr = loadPublicKey(publicKey)
+			if perr != nil {
+				fmt.Fprintf(os.Stderr, "could not load public key: %v\n", perr)
 				continue
 			}
 		}
-		retKeys = append(retKeys, key)
+
+		for x := 0; x < len(keys); x++ {
+			key := keys[x]
+			if parser != nil {
+				signature, _ := hex.DecodeString(key.PublicKeySig)
+				err := parser.Verify([]byte(key.PublicKey), signature)
+				if err != nil {
+					if *debug {
+						fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+					}
+					continue
+				}
+			}
+			retKeys = append(retKeys, key)
+		}
 	}
 	return retKeys, nil
 }
 
-func loadPublicKey(path string) error {
+func loadPublicKey(path string) (Verifier, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read public.pem (%s): %s\n", path, err)
 		}
-		return err
+		return nil, err
 	}
-	parsePublicKey(data)
-	return nil
+	return parsePublicKey(data)
 }
 
-func parsePublicKey(pemBytes []byte) error {
+func parsePublicKey(pemBytes []byte) (Verifier, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return errors.New("public key file does not contains any key")
+		return nil, errors.New("public key file does not contains any key")
 	}
 
 	var rawkey interface{}
@@ -378,17 +407,15 @@ func parsePublicKey(pemBytes []byte) error {
 	case "PUBLIC KEY":
 		rsa, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		rawkey = rsa
 	default:
-		return fmt.Errorf("rsa: unsupported key type %q", block.Type)
+		return nil, fmt.Errorf("rsa: unsupported key type %q", block.Type)
 	}
-	var err error
-	parser, err = newVerifierFromKey(rawkey)
 
-	return err
+	return newVerifierFromKey(rawkey)
 }
 
 func newVerifierFromKey(k interface{}) (Verifier, error) {
