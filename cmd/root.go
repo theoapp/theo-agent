@@ -33,6 +33,7 @@ var sshFingerprint = flag.String("fingerprint", "", "The fingerprint of the key 
 var cfgHostnamePrefix = flag.String("hostname-prefix", "", "Add a prefix to hostname when query server")
 var cfgHostnameSuffix = flag.String("hostname-suffix", "", "Add a suffix to hostname when query server")
 var passwordAuthentication = flag.Bool("with-password-authentication", false, "sshd: do not disable PasswordAuthentication (Use it only when testing!)")
+var useDNS = flag.Bool("with-use-dns", false, "sshd: set UseDNS option to yes - required when using hostnames/FQDNs in AuthorizedKeys 'from' directives")
 
 func Execute() {
 	flag.Usage = func() {

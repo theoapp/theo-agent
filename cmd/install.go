@@ -37,6 +37,10 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 		sshconfigs = append(sshconfigs, SshConfig{"PasswordAuthentication", "no"})
 	}
 
+	if *useDNS {
+		sshconfigs = append(sshconfigs, SshConfig{"UseDNS", "yes"})
+	}
+
 	return sshconfigs
 }
 
