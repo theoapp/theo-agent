@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -50,6 +51,10 @@ type Config struct {
 
 type rsaPublicKey struct {
 	*rsa.PublicKey
+}
+
+type ed25519PublicKey struct {
+	ed25519.PublicKey
 }
 
 // Verifier verifies signature against a public key.
@@ -418,10 +423,12 @@ func parsePublicKey(pemBytes []byte) (Verifier, error) {
 	case "PUBLIC KEY":
 		rsa, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed ParsePKIXPublicKey:%v\n", err)
 			return nil, err
 		}
 
 		rawkey = rsa
+		break
 	default:
 		return nil, fmt.Errorf("rsa: unsupported key type %q", block.Type)
 	}
@@ -431,11 +438,25 @@ func parsePublicKey(pemBytes []byte) (Verifier, error) {
 
 func newVerifierFromKey(k interface{}) (Verifier, error) {
 	var sshKey Verifier
+
 	switch t := k.(type) {
+	case ed25519.PublicKey:
+		if *debug {
+			fmt.Fprintf(os.Stderr, "type is ed25519 %T\n", k)
+		}
+		sshKey = &ed25519PublicKey{t}
+		break
 	case *rsa.PublicKey:
+		if *debug {
+			fmt.Fprintf(os.Stderr, "type is rsa %T\n", k)
+		}
 		sshKey = &rsaPublicKey{t}
+		break
 	default:
-		return nil, fmt.Errorf("rsa: unsupported key type %T", k)
+		if *debug {
+			fmt.Fprintf(os.Stderr, "unknown key type %T\n", k)
+		}
+		return nil, fmt.Errorf("unsupported key type %T", k)
 	}
 	return sshKey, nil
 }
@@ -446,6 +467,15 @@ func (r *rsaPublicKey) Verify(message []byte, signature []byte) error {
 	h.Write(message)
 	d := h.Sum(nil)
 	return rsa.VerifyPKCS1v15(r.PublicKey, crypto.SHA256, d, signature)
+}
+
+// Unsign verifies the message using a ed25519 signature
+func (r *ed25519PublicKey) Verify(message []byte, signature []byte) error {
+	ok := ed25519.Verify(r.PublicKey, message, signature)
+	if ok {
+		return nil
+	}
+	return errors.New("public key' signature not valid")
 }
 
 func parseSSHPublicKey(publicKey string) ssh.PublicKey {

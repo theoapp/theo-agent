@@ -1,0 +1,8 @@
+url: https://test.authkeys.io
+token: asdfds124231341413r143f1431
+cachedir: /var/cache/theo-agent
+verify: True
+public_key: |
+  -----BEGIN PUBLIC KEY-----
+  MCowBQYDK2VwAyEA9j8TUvu49u98EueCWPydfo+Lsqj7XaGni5xY3zwxybI=
+  -----END PUBLIC KEY-----
