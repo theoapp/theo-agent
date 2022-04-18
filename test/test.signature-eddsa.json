@@ -1,0 +1,7 @@
+[
+    {
+        "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPz2lNG4iQmdWWdNryBxwHHQowfaeRb8+DA7KfNnHPsE eddsa@laptop",
+        "public_key_sig": "54a7c633c882e3f8656b9ee4306ad019224791d174bfa1ffeac0f92ef46a220d46b37ea34dc3b36e107b3d0e7355385abdaded6b23d2f1ef7338998b8dd5c908",
+        "email":"theo@laptop"
+    }
+]

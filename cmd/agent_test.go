@@ -68,6 +68,28 @@ func TestVerEmbedPublicKey(t *testing.T) {
 	}
 }
 
+func TestEdDSAPublicKey(t *testing.T) {
+	config, ret := parseConfig("../test/config.4.yml")
+	if ret > 0 {
+		t.Errorf("parseConfig failed")
+	}
+	userCacheFile := "../test/test.signature-eddsa.json"
+	ret, keys := loadCacheFile(userCacheFile)
+	if ret > 0 {
+		fmt.Fprintf(os.Stderr, "Failed to read cached keys\n")
+		t.Errorf("signature verify failed")
+	}
+	parser, err := parsePublicKey([]byte(config.PublicKey[0]))
+	if err != nil {
+		t.Errorf("parser is nil")
+	}
+	signature, _ := hex.DecodeString(keys[0].PublicKeySig)
+	err = parser.Verify([]byte(keys[0].PublicKey), signature)
+	if err != nil {
+		t.Errorf("signature verify failed")
+	}
+}
+
 func TestSignatures(t *testing.T) {
 	userCacheFile := "../test/test.signatures.json"
 	ret, keys := loadCacheFile(userCacheFile)
