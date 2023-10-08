@@ -6,7 +6,7 @@ COMMON_PACKAGE_NAMESPACE=$(PACKAGE_NAMESPACE)/common
 
 VERSION := $(shell ./ci/version)
 REVISION := $(shell git rev-parse --short=8 HEAD || echo unknown)
-BRANCH := $(shell git show-ref | grep "$(REVISION)" | grep -v HEAD | awk '{print $$2}' | sed 's|refs/remotes/origin/||' | sed 's|refs/heads/||' | sort | head -n 1)
+BRANCH := $(shell ./ci/branch)
 BUILT := $(shell date -u +%Y-%m-%dT%H:%M:%S%z)
 
 GO_LDFLAGS ?= -X $(COMMON_PACKAGE_NAMESPACE).NAME=$(PACKAGE_NAME) -X $(COMMON_PACKAGE_NAMESPACE).VERSION=$(VERSION) \
@@ -18,7 +18,7 @@ BUILD_DIR=build
 
 all: test build
 
-buildx: 
+buildx:
 	mkdir -p build
 	go build -ldflags "$(GO_LDFLAGS)" -o $(BUILD_DIR)/$(PACKAGE_NAME)-$(shell echo "$(GOOS)-$(GOARCH)v$(GOARM)l" | sed 's/amd64/x86_64/; s/386/i686/; s/darwin/Darwin/; s/linux/Linux/; s/freebsd-x86_64/FreeBSD-amd64/; s/arm64/aarch64/; s/vl$$//')
 
