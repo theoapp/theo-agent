@@ -20,7 +20,7 @@ all: test build
 
 buildx:
 	mkdir -p build
-	go build -ldflags "$(GO_LDFLAGS)" -o $(BUILD_DIR)/$(PACKAGE_NAME)-$(shell echo "$(GOOS)-$(GOARCH)v$(GOARM)l" | sed 's/amd64/x86_64/; s/386/i686/; s/darwin/Darwin/; s/linux/Linux/; s/freebsd-x86_64/FreeBSD-amd64/; s/arm64/aarch64/; s/vl$$//')
+	go build -ldflags "$(GO_LDFLAGS)" -o $(BUILD_DIR)/$(PACKAGE_NAME)-$(shell echo "$(GOOS)-$(GOARCH)v$(GOARM)l" | sed 's/amd64/x86_64/; s/386/i686/; s/darwin/Darwin/; s/linux/Linux/; s/freebsd-x86_64/FreeBSD-amd64/; s/arm64/aarch64/; s/Darwin-aarch64/Darwin-arm64/; s/vl$$//')
 
 build: test
 	mkdir -p build

@@ -27,6 +27,7 @@ jobs:
           GOOS=linux GOARCH=arm GOARM=7 make -e buildx
           GOOS=linux GOARCH=arm64 make -e buildx
           GOOS=darwin GOARCH=amd64 make -e buildx
+          GOOS=darwin GOARCH=arm64 make -e buildx
           GOOS=freebsd GOARCH=amd64 make -e buildx
           GOOS=openbsd GOARCH=amd64 make -e buildx
           GOOS=netbsd GOARCH=amd64 make -e buildx
