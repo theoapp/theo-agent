@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+gitstatus=$(git status | head -n 1 | egrep -e '^On branch' | sed 's/On branch //')
+if [ -z "${gitstatus}" ]; then
+  gitlastcommit=$(git rev-parse --short=8 HEAD)
+  git show-ref | grep "${gitlastcommit}" | awk '{print $2}' | sed 's|refs/remotes/origin/||' | sed 's|refs/heads/||' | sort | head -n 1
+else
+  echo "${gitstatus}"
+fi
