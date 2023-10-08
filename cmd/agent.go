@@ -204,12 +204,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 
 	remotePath := fmt.Sprintf("authorized_keys/%s/%s", urlu.PathEscape(loadHostname()), urlu.PathEscape(user))
 	remoteURL := fmt.Sprintf("%s/%s", url, remotePath)
-	if *sshFingerprint != "" {
-		remoteURL = fmt.Sprintf("%s?f=%s", remoteURL, urlu.QueryEscape(*sshFingerprint))
-	}
-	if *debug {
-		fmt.Fprintf(os.Stderr, "Theo URL %s\n", remoteURL)
-	}
+
 	req, err := http.NewRequest(http.MethodGet, remoteURL, nil)
 	if err != nil {
 		if *debug {
@@ -217,6 +212,23 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		}
 		return nil, 8
 	}
+
+    q := req.URL.Query()
+    if *sshFingerprint != "" {
+        q.Add("f", *sshFingerprint)
+    }
+    if *sshConnection != "" {
+        connectionParts := strings.Split(*sshConnection, " ")
+        if len(connectionParts) == 4 {
+            q.Add("c", connectionParts[2])
+        }
+    }
+    req.URL.RawQuery = q.Encode()
+
+	if *debug {
+		fmt.Fprintf(os.Stderr, "Theo URL %s\n", remoteURL)
+	}
+
 	DefaultTimeout := int64(5000)
 	_timeout := DefaultTimeout
 	if config.Timeout > 0 {
