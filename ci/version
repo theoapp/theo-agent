@@ -3,6 +3,11 @@ if [ "${DEBUG}" = "true" ]; then
   set -x
 fi
 
+if [ "$GITHUB_REF_TYPE" = "tag" ] && [ -n "$GITHUB_REF_NAME" ]; then
+   echo "$GITHUB_REF_NAME"
+   exit
+fi
+
 exact_match=$(git describe --exact-match --dirty 2>/dev/null)
 retval=$?
 if [ $retval -gt 0 ]; then
