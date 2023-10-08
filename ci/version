@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
+if [ "${DEBUG}" = "true" ]; then
+  set -x
+fi
 
 exact_match=$(git describe --exact-match --dirty 2>/dev/null)
 retval=$?
