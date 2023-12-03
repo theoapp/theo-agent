@@ -27,6 +27,8 @@ jobs:
       - name: Print theo-agent -version
         run: ./build/theo-agent -version
       - name: Cross build
+        env:
+          CGO_ENABLED: 0
         run: |
           GOOS=linux GOARCH=amd64 make -e buildx
       - name: Upload theo-agent
