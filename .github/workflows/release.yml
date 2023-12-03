@@ -19,6 +19,8 @@ jobs:
         with:
           fetch-depth: 0
       - name: Cross build
+        env:
+          CGO_ENABLED: 0
         run: |
           GOOS=linux GOARCH=386 make -e buildx
           GOOS=linux GOARCH=amd64 make -e buildx
