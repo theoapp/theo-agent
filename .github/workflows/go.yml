@@ -26,3 +26,24 @@ jobs:
         run: make build
       - name: Print theo-agent -version
         run: ./build/theo-agent -version
+      - name: Cross build
+        run: |
+          GOOS=linux GOARCH=amd64 make -e buildx
+      - name: Upload theo-agent
+        uses: actions/upload-artifact@v3
+        with:
+          name: theo-agent-Linux-x86_64
+          path: build/theo-agent-Linux-x86_64
+  test-build:
+    name: Test artifact on 20.04
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Download theo-agent
+        uses: actions/download-artifact@v3
+        with:
+          name: theo-agent-Linux-x86_64
+      - name: Add execution bit to downloaded file
+        run: chmod +x ./theo-agent-Linux-x86_64
+      - name: Print theo-agent -version
+        run: ./theo-agent-Linux-x86_64 -version
