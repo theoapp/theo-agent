@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Download theo-agent
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: theo-agent-Linux-x86_64
       - name: Add execution bit to downloaded file
