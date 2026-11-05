@@ -8,16 +8,18 @@ Available at [theoapp.readthedocs.io](https://theoapp.readthedocs.io/en/latest/)
 
 
 ### Build
-To build from sources, after cloning the git repo, execute:
+Building from sources requires Go 1.26 or later and a full git clone (tags are used to compute the version).
 
-```
-make build_current
-``` 
-
-To build theo-agent for the platform you are on
+To run the tests and build theo-agent for the platform you are on:
 
 ```
 make build
 ```
 
-To build theo-agent for all the supported platforms
+To cross-build for another platform, set `GOOS` and `GOARCH` (and `GOARM` for 32-bit ARM):
+
+```
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 make -e buildx
+```
+
+The binaries are written to the `build` directory.

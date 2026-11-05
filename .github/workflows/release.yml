@@ -5,19 +5,27 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: read
+
 jobs:
   release:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.21
-          check-latest: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          # Release binaries must not be built from a restored cache.
+          cache: false
       - name: Cross build
         env:
           CGO_ENABLED: 0
@@ -33,20 +41,15 @@ jobs:
           GOOS=freebsd GOARCH=amd64 make -e buildx
           GOOS=openbsd GOARCH=amd64 make -e buildx
           GOOS=netbsd GOARCH=amd64 make -e buildx
-      - name: Create Release
-        uses: actions/create-release@v1.0.0
-        id: create_release
+      - name: Generate checksums
+        working-directory: build
+        run: sha256sum -- * > sha256sums.txt
+      - name: Create release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-      - name: Upload Release Assets
-        uses: glentiki/xbin-release-action@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          assets_path: ./build
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Release $GITHUB_REF_NAME" \
+            --verify-tag \
+            --generate-notes

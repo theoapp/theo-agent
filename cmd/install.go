@@ -3,7 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -202,7 +202,7 @@ func writeConfigYaml() {
 }
 
 func doEditSshdConfig(version [2]int64) bool {
-	data, err := ioutil.ReadFile(*pathSshdConfig)
+	data, err := os.ReadFile(*pathSshdConfig)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read %s, %s\n", *pathSshdConfig, err)
@@ -212,7 +212,7 @@ func doEditSshdConfig(version [2]int64) bool {
 
 	if *backupSshdConfig {
 		pathSshdConfigBackup := fmt.Sprintf("%s%s", *pathSshdConfig, ".backup")
-		err = ioutil.WriteFile(pathSshdConfigBackup, data, 0640)
+		err = os.WriteFile(pathSshdConfigBackup, data, 0640)
 		if err != nil {
 			fmt.Println("Error creating sshd_config backup file", pathSshdConfigBackup)
 			fmt.Println(err)
@@ -279,7 +279,7 @@ func getSSHDVersion() (int64, int64) {
 		os.Exit(20)
 	}
 
-	slurp, _ := ioutil.ReadAll(stderr)
+	slurp, _ := io.ReadAll(stderr)
 
 	lines := strings.Split(string(slurp[:]), "\n")
 

@@ -12,7 +12,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	urlu "net/url"
 	"os"
@@ -25,7 +25,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/theoapp/theo-agent/common"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Key is the object returned by theo-node
@@ -182,7 +182,7 @@ func filterKeysByFingerprint(fingerprint string, user string, keys []Key) []Key 
 func printAuthorizedKeys(keys []Key) {
 	signal.Notify(make(chan os.Signal, 1), syscall.SIGPIPE)
 	for i := 0; i < len(keys); i++ {
-		_, err := fmt.Printf(getAuthorizedKeysLine(keys[i]))
+		_, err := fmt.Print(getAuthorizedKeysLine(keys[i]))
 		if err != nil {
 			break
 		}
@@ -255,7 +255,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		}
 		return nil, 20
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to parse HTTP response from %s: %s\n", remoteURL, err)
@@ -267,7 +267,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 
 func writeCacheFile(userCacheFile string, keys []Key) int {
 	body, _ := json.Marshal(keys)
-	err := ioutil.WriteFile(userCacheFile, body, 0644)
+	err := os.WriteFile(userCacheFile, body, 0644)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to write cache file (%s): %s\n", userCacheFile, err)
@@ -292,7 +292,7 @@ func getUserFilename(user string) string {
 }
 
 func loadCacheFile(userCacheFile string) (int, []Key) {
-	dat, err := ioutil.ReadFile(userCacheFile)
+	dat, err := os.ReadFile(userCacheFile)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read cache file (%s): %s\n", userCacheFile, err)
@@ -311,7 +311,7 @@ func loadConfig(configFile string) ([]byte, int) {
 	if configFile == "" {
 		configFile = *configFilePath
 	}
-	data, err := ioutil.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read configFile (%s): %s\n", *configFilePath, err)
@@ -414,7 +414,7 @@ func verifyKeys(publicKey []string, keys []Key) ([]Key, error) {
 }
 
 func loadPublicKey(path string) (Verifier, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to read public.pem (%s): %s\n", path, err)
