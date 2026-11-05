@@ -2,14 +2,17 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type SshConfig struct {
@@ -18,6 +21,15 @@ type SshConfig struct {
 }
 
 var _cacheDirPath string
+
+// validateSshdConfig checks a candidate sshd_config before it replaces the current one
+var validateSshdConfig = func(path string) error {
+	out, err := exec.Command("sshd", "-t", "-f", path).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
 
 func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
@@ -83,6 +95,9 @@ func prepareInstall() {
 		fmt.Fprintf(os.Stderr, "Missing required Theo URL\n")
 		os.Exit(2)
 	}
+	if usesPlainHTTP(*theoURL) {
+		fmt.Fprintf(os.Stderr, "Warning: %s is not using HTTPS, the access token and the keys will travel in clear text\n", *theoURL)
+	}
 
 	askOnce("Theo access token", theoAccessToken)
 	if *theoAccessToken == "" {
@@ -97,6 +112,10 @@ func prepareInstall() {
 			os.Exit(2)
 		}
 	}
+}
+
+func usesPlainHTTP(url string) bool {
+	return strings.HasPrefix(strings.ToLower(url), "http://")
 }
 
 func askOnce(prompt string, result *string) {
@@ -183,20 +202,13 @@ func writeConfigYaml() {
 	}
 
 	config := fmt.Sprintf("url: %s\ntoken: %s\n%s%s%s%s", *theoURL, *theoAccessToken, _publicKeyPath, __cacheDirPath, _hostnamePrefix, _hostnameSuffix)
-	f, err := os.Create(*configFilePath)
-	if err != nil {
-		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *configFilePath, err)
-		}
-		os.Exit(21)
+	// The file holds the access token: only root and the agent's group can read it.
+	gid, err := strconv.Atoi(lookupUser().Gid)
+	if err == nil {
+		err = writeFileAtomic(*configFilePath, []byte(config), 0640, -1, gid, nil)
 	}
-	defer f.Close()
-
-	_, err = f.WriteString(config)
 	if err != nil {
-		if *debug {
-			fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *configFilePath, err)
-		}
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s\n", *configFilePath, err)
 		os.Exit(21)
 	}
 }
@@ -219,95 +231,110 @@ func doEditSshdConfig(version [2]int64) bool {
 		}
 	}
 
-	lines := strings.Split(string(data), "\n")
-	i := 0
 	sshconfigs := getSshConfigs(*theoUser, *verify, version)
-	for i < len(lines) {
-		line := lines[i]
-		ii := 0
-
-		for ii < len(sshconfigs) {
-			p := strings.Index(line, sshconfigs[ii].key)
-			if p == 0 {
-				lines[i] = strings.Trim(fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value), " ")
-				sshconfigs = remove(sshconfigs, ii)
-				break
-			}
-			ii++
-		}
-		i++
-	}
-	ii := 0
-	for ii < len(sshconfigs) {
-		lines = append(lines, strings.Trim(fmt.Sprintf("%s %s", sshconfigs[ii].key, sshconfigs[ii].value), " "))
-		ii++
-	}
-
-	f, err := os.Create(*pathSshdConfig)
+	err = replaceSshdConfig(*pathSshdConfig, updateSshdConfig(string(data), sshconfigs))
 	if err != nil {
-
-		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *pathSshdConfig, err)
-
-		os.Exit(21)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(strings.Join(lines, "\n"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s", *pathSshdConfig, err)
+		fmt.Fprintf(os.Stderr, "Unable to write config file (%s): %s\n", *pathSshdConfig, err)
 		os.Exit(21)
 	}
 
 	return true
 }
 
-func remove(s []SshConfig, i int) []SshConfig {
-	s[len(s)-1], s[i] = s[i], s[len(s)-1]
-	return s[:len(s)-1]
+// updateSshdConfig sets the given options in the global section of an
+// sshd_config. Anything after the first Match keyword only applies to that
+// block, so options are never changed or added there.
+func updateSshdConfig(content string, sshconfigs []SshConfig) string {
+	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+	insertAt := len(lines)
+	for i, line := range lines {
+		keyword := sshdKeyword(line)
+		if strings.EqualFold(keyword, "Match") {
+			insertAt = i
+			break
+		}
+		for ii, sshconfig := range sshconfigs {
+			if strings.EqualFold(keyword, sshconfig.key) {
+				lines[i] = sshdConfigLine(sshconfig)
+				sshconfigs = slices.Delete(sshconfigs, ii, ii+1)
+				break
+			}
+		}
+	}
+	added := make([]string, 0, len(sshconfigs))
+	for _, sshconfig := range sshconfigs {
+		added = append(added, sshdConfigLine(sshconfig))
+	}
+	lines = slices.Insert(lines, insertAt, added...)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func sshdKeyword(line string) string {
+	fields := strings.FieldsFunc(line, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '='
+	})
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+func sshdConfigLine(sshconfig SshConfig) string {
+	return strings.Trim(fmt.Sprintf("%s %s", sshconfig.key, sshconfig.value), " ")
+}
+
+// replaceSshdConfig validates content as a complete sshd_config and installs
+// it, keeping the mode and the owner of the current file. A symbolic link at
+// path is kept as well: its target is the file being replaced.
+func replaceSshdConfig(path string, content string) error {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("unable to read the owner of %s", target)
+	}
+	return writeFileAtomic(target, []byte(content), info.Mode().Perm(), int(stat.Uid), int(stat.Gid), validateSshdConfig)
 }
 
 func getSSHDVersion() (int64, int64) {
-	cmd := exec.Command("sshd", "-v")
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to get sshd version: %s", err)
-		os.Exit(21)
-	}
-
-	if err := cmd.Start(); err != nil {
+	// sshd has no version flag: it prints its version with the usage message
+	// and exits with an error.
+	out, err := exec.Command("sshd", "-v").CombinedOutput()
+	var exitErr *exec.ExitError
+	if err != nil && !errors.As(err, &exitErr) {
 		fmt.Fprintf(os.Stderr, "Unable to get sshd version: %s", err)
 		os.Exit(20)
 	}
-
-	slurp, _ := io.ReadAll(stderr)
-
-	lines := strings.Split(string(slurp[:]), "\n")
-
-	openssh := strings.Split(lines[1], " ")
-	return parseSSHDVersion(openssh)
+	return parseSSHDVersion(strings.Fields(string(out)))
 }
 
 func parseSSHDVersion(openssh []string) (int64, int64) {
 	var version = "0.0"
 	i := 0
 	for i < len(openssh) {
-		if strings.HasPrefix(openssh[i], "OpenSSH") {
-			version = openssh[i]
+		if strings.HasPrefix(openssh[i], "OpenSSH_") {
+			version = strings.TrimPrefix(openssh[i], "OpenSSH_")
 			break
 		}
 		i++
 	}
 	if version != "0.0" {
-		version = version[8:]
-		if version[len(version)-1:] == "," {
-			version = version[:len(version)-1]
-		}
+		version = strings.TrimSuffix(version, ",")
 		ppos := strings.Index(version, "p")
 		if ppos > 0 {
 			version = version[:ppos]
 		}
 	}
 	majorMinor := strings.Split(version, ".")
+	if len(majorMinor) < 2 {
+		return 0, 0
+	}
 	major, err := strconv.ParseInt(majorMinor[0], 10, 64)
 	if err == nil {
 		minor, err := strconv.ParseInt(majorMinor[1], 10, 64)

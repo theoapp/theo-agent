@@ -28,6 +28,9 @@ import (
 	"go.yaml.in/yaml/v2"
 )
 
+// maxResponseSize is the largest authorized_keys response accepted from the server
+const maxResponseSize = 10 << 20
+
 // Key is the object returned by theo-node
 type Key struct {
 	PublicKey    string `json:"public_key"`
@@ -84,6 +87,10 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Query makes a request to Theo server at url sending auth token for the requested user
 func Query(user string) {
+	if strings.Contains(user, "/") {
+		fmt.Fprintf(os.Stderr, "Invalid user name %q\n", user)
+		os.Exit(1)
+	}
 	var ret int
 	config, ret = parseConfig("")
 	if ret > 0 {
@@ -120,6 +127,7 @@ func Query(user string) {
 			os.Exit(9)
 		}
 	}
+	keys = dropUnsafeKeys(keys)
 	if mustVerify() {
 		var err error
 		publicKeys := getPublicKeys()
@@ -133,6 +141,22 @@ func Query(user string) {
 	}
 	printAuthorizedKeys(keys)
 	os.Exit(ret)
+}
+
+// dropUnsafeKeys removes keys that would span more than one authorized_keys
+// line. Signatures only cover PublicKey, so a line break in SSHOptions could
+// otherwise add an unsigned key to the output.
+func dropUnsafeKeys(keys []Key) []Key {
+	retKeys := make([]Key, 0, len(keys))
+	for i := 0; i < len(keys); i++ {
+		publicKey := strings.TrimRight(keys[i].PublicKey, "\r\n")
+		if strings.ContainsAny(keys[i].SSHOptions, "\r\n") || strings.ContainsAny(publicKey, "\r\n") {
+			fmt.Fprintf(os.Stderr, "Ignoring key of %q: line break in public key or ssh options\n", keys[i].Account)
+			continue
+		}
+		retKeys = append(retKeys, keys[i])
+	}
+	return retKeys
 }
 
 func mustVerify() bool {
@@ -164,7 +188,13 @@ func filterKeysByFingerprint(fingerprint string, user string, keys []Key) []Key 
 	retKeys := make([]Key, 0)
 	for i := 0; i < len(keys); i++ {
 		if keys[i].Account != "" {
-			sshpk := parseSSHPublicKey(keys[i].PublicKey)
+			sshpk, err := parseSSHPublicKey(keys[i].PublicKey)
+			if err != nil {
+				if *debug {
+					fmt.Fprintf(os.Stderr, "Ignoring key of %q: %s\n", keys[i].Account, err)
+				}
+				continue
+			}
 			f := ssh.FingerprintSHA256(sshpk)
 			if f == fingerprint {
 				a, b := gsyslog.NewLogger(gsyslog.LOG_INFO, "AUTH", "theo-agent")
@@ -255,10 +285,16 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 		}
 		return nil, 20
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to parse HTTP response from %s: %s\n", remoteURL, err)
+		}
+		return nil, 20
+	}
+	if len(body) > maxResponseSize {
+		if *debug {
+			fmt.Fprintf(os.Stderr, "HTTP response from %s is larger than %d bytes\n", remoteURL, maxResponseSize)
 		}
 		return nil, 20
 	}
@@ -267,7 +303,7 @@ func performQuery(user string, url string, token string) ([]byte, int) {
 
 func writeCacheFile(userCacheFile string, keys []Key) int {
 	body, _ := json.Marshal(keys)
-	err := os.WriteFile(userCacheFile, body, 0644)
+	err := writeFileAtomic(userCacheFile, body, 0600, -1, -1, nil)
 	if err != nil {
 		if *debug {
 			fmt.Fprintf(os.Stderr, "Unable to write cache file (%s): %s\n", userCacheFile, err)
@@ -337,7 +373,7 @@ func loadHostname() (hostname string) {
 		}
 	}
 	if *cfgHostnameSuffix != "" {
-		hostname = fmt.Sprintf("%s%s", *cfgHostnameSuffix, hostname)
+		hostname = fmt.Sprintf("%s%s", hostname, *cfgHostnameSuffix)
 	} else {
 		if config.HostnameSuffix != "" {
 			hostname = fmt.Sprintf("%s%s", hostname, config.HostnameSuffix)
@@ -490,13 +526,10 @@ func (r *ed25519PublicKey) Verify(message []byte, signature []byte) error {
 	return errors.New("public key' signature not valid")
 }
 
-func parseSSHPublicKey(publicKey string) ssh.PublicKey {
+func parseSSHPublicKey(publicKey string) (ssh.PublicKey, error) {
 	pubKeyBytes := []byte(publicKey)
 
 	// Parse the key, other info ignored
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(pubKeyBytes)
-	if err != nil {
-		panic(err)
-	}
-	return pk
+	return pk, err
 }
