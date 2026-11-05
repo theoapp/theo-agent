@@ -23,8 +23,8 @@ func getSshConfigs(user string, verify bool, version [2]int64) []SshConfig {
 	var commandOpts = ""
 	if version[0] < 6 || (version[0] == 6 && version[1] < 9) {
 		commandOpts = ""
-    } else if version[0] < 9 || (version[0] == 9 && version[1] < 4) {
-        commandOpts = "-fingerprint %f %u"
+	} else if version[0] < 9 || (version[0] == 9 && version[1] < 4) {
+		commandOpts = "-fingerprint %f %u"
 	} else {
 		commandOpts = "-fingerprint %f -connection %C %u"
 	}
